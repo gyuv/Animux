@@ -37,7 +37,7 @@ export function Player({
   const { preferences, setPreferences, recordProgress } = useLibrary();
 
   const [payload, setPayload] = useState<StreamPayload | null>(null);
-  const [source setSource] = useState<StreamSource | null>(null);
+  const [source, setSource] = useState<StreamSource | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [buffering, setBuffering] = useState(true);
 
