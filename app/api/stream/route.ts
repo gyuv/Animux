@@ -4,8 +4,9 @@ import { prisma } from '@/lib/prisma';
 
 export interface StreamSource {
   id?: string;
- : string;
-  bitrate: number  resolution: string;
+  url: string;
+  bitrate: number;
+  resolution: string;
   kind?: 'sub' | 'dub';
   language?: string;
   audioLang?: string;
