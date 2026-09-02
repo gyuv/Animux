@@ -1,5 +1,11 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
   "/api/stream/route": "app/api/stream/route.js",
-  "/explore/page": "app/explore/page.js"
+  "/explore/page": "app/explore/page.js",
+  "/library/page": "app/library/page.js",
+  "/browse/page": "app/browse/page.js",
+  "/page": "app/page.js",
+  "/watch/[id]/page": "app/watch/[id]/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/title/[id]/page": "app/title/[id]/page.js"
 }
