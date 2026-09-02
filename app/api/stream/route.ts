@@ -35,10 +35,10 @@ export interface StreamPayload {
   subtitles?: SubtitleTrack[];
   drmConfig?: DrmConfig | null;
   duration?: number; // Keep only ONE of these
-  meta?: {
-    title: string;
-    thumbnail: string;
-  };
+  meta: {
+  title: fourAnimeData.title,
+  thumbnail: fourAnimeData.thumbnail,
+},
   chapters?: {
     intro: [number, number] | null;
     recap: [number, number] | null;
