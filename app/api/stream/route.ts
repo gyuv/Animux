@@ -21,12 +21,19 @@ export interface SubtitleTrack {
   url?: string;
 }
 
+export interface DrmConfig {
+  type: 'widevine';
+  keyId: string;
+  certificateUrl?: string;
+}
+
 export interface StreamPayload {
   animeId: string;
   episodeId: string;
   streamUrl: string;
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
+  drmConfig?: DrmConfig | null;
   meta?: {
     title: string;
     duration: number;
@@ -145,9 +152,7 @@ async function checkStreamHealth(url: string): Promise<boolean> {
  * - If it's JSON with { keyId, certUrl }, that shape is used directly.
  * Adjust this to match your actual Prisma model.
  */
-function buildDrmConfig(
-  drmKey: unknown
-): { type: 'widevine'; keyId: string; certificateUrl?: string } | null {
+function buildDrmConfig(drmKey: unknown): DrmConfig | null {
   if (!drmKey) return null;
 
   if (typeof drmKey === 'string') {
