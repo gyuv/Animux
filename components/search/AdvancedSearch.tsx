@@ -1,44 +1,43 @@
 import React, { useState } from 'react';
 import { Search, ChevronDown } from 'lucide-react';
 
-interface SearchFilters {
-  query: string;
-  status: string[];
-  genre: string[];
-  audio: string[];
-  [key: string]: string | string[]; // Index signature for dynamic access
-}
-
 interface AdvancedSearchProps {
-  onSearch: (filters: SearchFilters) => void;
+  onSearch: (filters: { query: string; status: string[]; genre: string[]; audio: string[] }) => void;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen }) => {
   const [query, setQuery] = useState('');
-  const [activeFilters, setActiveFilters] = useState<SearchFilters>({
-    query: '',
-    status: [],
-    genre: [],
-    audio: []
-  });
+  const [status, setStatus] = useState<string[]>([]);
+  const [genre, setGenre] = useState<string[]>([]);
+  const [audio, setAudio] = useState<string[]>([]);
 
-  const toggleFilter = (category: keyof SearchFilters, value: string) => {
-    const current = (activeFilters[category] as string[]) || [];
-    const updated = current.includes(value)
-      ? current.filter((f: string) => f !== value)
-      : [...current, value];
-    
-    const newFilters = { ...activeFilters, [category]: updated };
-    setActiveFilters(newFilters);
-    onSearch(newFilters);
+  const triggerSearch = (newQuery: string, newStatus: string[], newGenre: string[], newAudio: string[]) => {
+    onSearch({ query: newQuery, status: newStatus, genre: newGenre, audio: newAudio });
+  };
+
+  const toggleFilter = (type: 'status' | 'genre' | 'audio', value: string) => {
+    let updated: string[] = [];
+    if (type === 'status') {
+      updated = status.includes(value) ? status.filter(f => f !== value) : [...status, value];
+      setStatus(updated);
+      triggerSearch(query, updated, genre, audio);
+    } else if (type === 'genre') {
+      updated = genre.includes(value) ? genre.filter(f => f !== value) : [...genre, value];
+      setGenre(updated);
+      triggerSearch(query, status, updated, audio);
+    } else if (type === 'audio') {
+      updated = audio.includes(value) ? audio.filter(f => f !== value) : [...audio, value];
+      setAudio(updated);
+      triggerSearch(query, status, genre, updated);
+    }
   };
 
   const categories = [
-    { label: 'Status', key: 'status', options: ['Ongoing', 'Completed'] },
-    { label: 'Audio', key: 'audio', options: ['Sub', 'Dub'] },
-    { label: 'Genre', key: 'genre', options: ['Action', 'Romance', 'Isekai', 'Mecha'] }
+    { label: 'Status', key: 'status' as const, options: ['Ongoing', 'Completed'] },
+    { label: 'Audio', key: 'audio' as const, options: ['Sub', 'Dub'] },
+    { label: 'Genre', key: 'genre' as const, options: ['Action', 'Romance', 'Isekai', 'Mecha'] }
   ];
 
   if (!isOpen) return null;
@@ -53,9 +52,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            const newFilters = { ...activeFilters, query: e.target.value };
-            setActiveFilters(newFilters);
-            onSearch(newFilters);
+            triggerSearch(e.target.value, status, genre, audio);
           }}
         />
       </div>
@@ -68,7 +65,8 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen
             </button>
             <div className="absolute top-full left-0 mt-2 w-48 bg-[#1e1e24] border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20">
               {cat.options.map(opt => {
-                const isSelected = (activeFilters[cat.key] as string[])?.includes(opt);
+                const currentList = cat.key === 'status' ? status : cat.key === 'genre' ? genre : audio;
+                const isSelected = currentList.includes(opt);
                 return (
                   <button
                     key={opt}
