@@ -36,13 +36,13 @@ export interface StreamPayload {
   drmConfig?: DrmConfig | null;
   meta?: {
     title: string;
-    duration: number;
     thumbnail: string;
   };
   chapters?: {
     intro: [number, number] | null;
     recap: [number, number] | null;
   };
+  duration?: number; // Add this line
 }
 
 // ---- Route ----
