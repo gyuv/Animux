@@ -39,6 +39,10 @@ export interface StreamPayload {
     duration: number;
     thumbnail: string;
   };
+  chapters?: {
+    intro: [number, number] | null;
+    recap: [number, number] | null;
+  };
 }
 
 // ---- Route ----
