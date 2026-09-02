@@ -399,7 +399,8 @@ export function Player({
 
 function IconButton({
   label, onClick, pressed, children,
-}: { label: string; onClick: () => void; pressed?: boolean; children: React.ReactNode {
+}: { label: string; onClick: () => void; pressed?: boolean; children: React.ReactNode }) {
+
   return (
     <button
       type="button"
