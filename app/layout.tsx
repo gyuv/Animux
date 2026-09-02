@@ -1,9 +1,9 @@
 // app/layout.tsx
-import './globals.css'; // Make sure this points to your Tailwind CSS styles
+import './globals.css'; // <-- This line is essential for Tailwind to load!
 
 export const metadata = {
   title: 'Animux | Next-Gen Anime Streaming',
-  description: 'Advanced anime streaming web app with multi-language support and cross-device sync.',
+  description: 'Advanced anime streaming web app.',
 };
 
 export default function RootLayout({
