@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, hasDatabase } from '@/lib/prisma';
 
 
 export interface StreamSource {
@@ -103,7 +103,17 @@ export async function GET(request: Request) {
 
     console.warn(`4anime returned nothing for episode ${episodeId}, falling back to DB`);
 
-    // B. Fallback to Prisma database
+    // B. Fallback to Prisma database.
+    // The schema currently defines no models and no DATABASE_URL may be set,
+    // so this path is checked rather than assumed. Without it, a lookup here
+    // throws an initialisation error that reads like a server bug.
+    if (!hasDatabase()) {
+      return NextResponse.json(
+        { error: 'No stream source available for this episode.' },
+        { status: 404 },
+      );
+    }
+
     const episode = await prisma.episode.findUnique({
       where: { id: episodeId },
       select: {
@@ -157,10 +167,13 @@ export async function GET(request: Request) {
         sources,
         subtitles,
         drmConfig: buildDrmConfig(episode.drmKey),
-        duration: episode.duration,
+        // These columns are nullable in the database but the payload contract
+        // is not. Coalesced here rather than loosening StreamPayload, so the
+        // player keeps its guarantee that meta fields are present strings.
+        duration: episode.duration ?? undefined,
         meta: {
-          title: episode.title,
-          thumbnail: episode.thumbnail,
+          title: episode.title ?? '',
+          thumbnail: episode.thumbnail ?? '',
         },
         chapters: { intro: null, recap: null },
       } satisfies StreamPayload,

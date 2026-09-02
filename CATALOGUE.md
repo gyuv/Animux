@@ -46,12 +46,51 @@ banner above the content rather than replacing it.
 | `ANILIST_RATE_PER_MIN` | `24` | Lower it if you get rate limited; do not raise it above 30 while the API is degraded |
 | `ANILIST_BURST` | `4` | Maximum simultaneous requests |
 
+## Prisma
+
+The app builds and deploys with **no database configured**. Prisma is only used
+by one fallback branch in `app/api/stream/route.ts`; without `DATABASE_URL` that
+branch returns 404 instead of throwing.
+
+What was wrong before, all at once:
+
+- `prisma/schema.prisma` used Prisma 7 syntax (`provider = "prisma-client"`, a
+  `datasource` with no `url`) while `package.json` pins Prisma 5, so
+  `prisma generate` could not succeed against it.
+- The schema declared no models, yet the stream route queries `prisma.episode`.
+- `lib/prisma.ts` constructed `new PrismaClient()` at module scope. Next's
+  "Collecting page data" pass imports every route, so the *build* crashed with
+  "@prisma/client did not initialize yet".
+- `lib/prisma.ts` also imported types from `@prisma/client`, which exports
+  nothing until generated — a second build failure behind the first.
+
+Now: the schema targets Prisma 5 and defines `Episode`; `lib/prisma.ts`
+constructs the client lazily on first property access and declares the record
+shape locally instead of importing it.
+
+To actually use a database:
+
+```
+DATABASE_URL=postgresql://...   # set this first
+npm run db:generate             # generate the client
+npm run db:push                 # create the Episode table
+```
+
+`prisma generate` is deliberately **not** part of `npm run build`. Adding it
+reintroduces a build-time dependency on Prisma's binary downloads and on
+`DATABASE_URL` being present, which is what made the build fragile before.
+
 ## Known stray files
 
-`prisma7.config.ts` is a Prisma 7 generated config that imports `prisma/config`,
-but `package.json` pins Prisma 5. It is not referenced by the app and it breaks
-`next build`, so it is excluded in `tsconfig.json`. Delete it, or upgrade Prisma
-and remove the exclusion.
+`MediaGrid.tsx` (repo root) and `pp/explore/page.tsx` (a mistyped `app/`) look
+like leftovers worth checking.
 
-`MediaGrid.tsx` (repo root) and `pp/explore/page.tsx` (a mistyped `app/`) also
-look like leftovers worth checking.
+`.next/` is committed to the repo. Vercel warns about this, and a stale cached
+build can shadow a real one. It is now in `.gitignore`, but git keeps tracking
+files it already knows about, so run once:
+
+```
+git rm -r --cached .next
+git commit -m "Stop tracking build output"
+```
+
