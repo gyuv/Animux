@@ -34,17 +34,15 @@ export interface StreamPayload {
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
   drmConfig?: DrmConfig | null;
-  duration?: number; // Add this at the top level
+  duration?: number; // Keep only ONE of these
   meta?: {
     title: string;
     thumbnail: string;
-    duration?: number; // Optional: if you still want it in meta
   };
   chapters?: {
     intro: [number, number] | null;
     recap: [number, number] | null;
   };
-  duration?: number; // Add this line
 }
 
 // ---- Route ----
