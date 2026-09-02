@@ -350,7 +350,7 @@ setSource(pick);
             <div className="ml-auto flex items-center gap-2">
               {payload?.sources?.length ? (
                 <IconButton label="Audio and subtitles" onClick={() => setMenu((v) => !v)} pressed={menu}>
-                  {payload.subtitles.length > 0 ? <Subtitles size={20} aria-hidden /> : <Settings size={20} aria-hidden />}
+                  {(payload.subtitles?.length ?? 0) > 0 ? <Subtitles size={20} aria-hidden /> : <Settings size={20} aria-hidden />}
                 </IconButton>
               )}
 
