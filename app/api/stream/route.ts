@@ -83,10 +83,10 @@ export async function GET(request: Request) {
           subtitles: fourAnimeData.subtitles,
           drmConfig: null,
           meta: {
-            title: fourAnimeData.title,
-            duration: fourAnimeData.duration,
-            thumbnail: fourAnimeData.thumbnail,
-          },
+  title: fourAnimeData.title,
+  thumbnail: fourAnimeData.thumbnail,
+  duration: fourAnimeData.duration, // Add this line here
+},
         } satisfies StreamPayload,
       });
     }
