@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getAnime, displayTitle } from '@/services/anilist';
+import { getAnime, displayTitle, AniListError } from '@/services/anilist';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { stripHtml, season, airingIn } from '@/lib/format';
 import { toChromaVar } from '@/lib/chroma';
 import { EpisodeList } from '@/components/media/EpisodeList';
@@ -31,7 +32,23 @@ export default async function TitlePage({ params }: { params: { id: string } }) 
   let anime;
   try {
     anime = await getAnime(id);
-  } catch {
+  } catch (error) {
+    // "This title does not exist" and "the catalogue is unreachable" are very
+    // different things to tell someone. Only the first one is a 404.
+    if (error instanceof AniListError && error.kind !== 'query') {
+      return (
+        <EmptyState
+          title="Can't load this title"
+          body={error.viewerMessage}
+          action={
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link href={`/title/${id}`} className="key-primary">Try again</Link>
+              <Link href="/" className="key-ghost">Back to home</Link>
+            </div>
+          }
+        />
+      );
+    }
     notFound();
   }
 

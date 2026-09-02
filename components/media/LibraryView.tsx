@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useLibrary } from '@/store/useLibrary';
-import { searchAnime, type Anime } from '@/services/anilist';
+import type { Anime } from '@/services/anilist';
 import { PosterCard, PosterSkeleton } from './PosterCard';
 import { ContinueCard } from './ContinueCard';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -24,25 +24,28 @@ export function LibraryView() {
       return;
     }
     setLoading(true);
-    // AniList has no bulk-by-id helper in our search shape, so we resolve the
-    // saved list one title at a time and keep whatever comes back.
-    Promise.all(
-      savedIds.slice(0, 40).map((id) =>
-        fetch('https://graphql.anilist.co', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `query($id:Int){Media(id:$id,type:ANIME){id title{romaji english native} coverImage{extraLarge large color} averageScore status episodes}}`,
-            variables: { id: Number(id) },
-          }),
-        })
-          .then((r) => r.json())
-          .then((j) => j?.data?.Media as Anime | undefined)
-          .catch(() => undefined),
-      ),
-    )
-      .then((rows) => setSaved(rows.filter(Boolean) as Anime[]))
+    const controller = new AbortController();
+
+    /**
+     * One request for the whole saved list. This previously issued a separate
+     * call to AniList for every saved title — forty browsers' worth of that is
+     * exactly the traffic pattern that gets an app rate limited and then
+     * blocked, and it was doing it from the viewer's own connection.
+     */
+    fetch('/api/catalogue/by-ids', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: savedIds.map(Number) }),
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((json) => setSaved((json?.media ?? []) as Anime[]))
+      .catch(() => {
+        // Keep whatever is already on screen rather than emptying the shelf.
+      })
       .finally(() => setLoading(false));
+
+    return () => controller.abort();
   }, [mounted, savedIds]);
 
   if (!mounted) return null;
