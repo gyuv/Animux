@@ -1,7 +1,5 @@
 'use client';
-// Inside components/player/LanguageMenu.tsx
-const dubs = payload.sources?.filter((s) => s.kind === 'dub') ?? [];
-const subs = payload.sources?.filter((s) => s.kind === 'sub') ?? [];
+
 import { Check, X } from 'lucide-react';
 import type { StreamPayload, StreamSource } from '@/app/api/stream/route';
 import type { Preferences } from '@/store/useLibrary';
@@ -34,8 +32,9 @@ const SIZES: { value: Preferences['subtitleSize']; label: string }[] = [
 export function LanguageMenu({
   payload, current, preferences, onPickSource, onPickSubtitle, onSetSize, onClose,
 }: Props) {
-  const dubs = payload.sources.filter((s) => s.kind === 'dub');
-  const subs = payload.sources.filter((s) => s.kind === 'sub');
+  // Safely extract dubs and subs with optional chaining and fallbacks
+  const dubs = payload.sources?.filter((s) => s.kind === 'dub') ?? [];
+  const subs = payload.sources?.filter((s) => s.kind === 'sub') ?? [];
 
   return (
     <>
@@ -50,9 +49,9 @@ export function LanguageMenu({
         role="dialog"
         aria-label="Audio and subtitles"
         className="absolute inset-x-0 bottom-0 z-30 max-h-[76svh] overflow-y-auto rounded-t-panel
-                   border-t border-ink-700 bg-ink-900/95 pb-[env(safe-area-inset-bottom)]
-                   backdrop-blur-xl sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-[380px]
-                   sm:rounded-panel sm:border"
+                    border-t border-ink-700 bg-ink-900/95 pb-[env(safe-area-inset-bottom)]
+                    backdrop-blur-xl sm:inset-x-auto sm:bottom-24 sm:right-6 sm:w-[380px]
+                    sm:rounded-panel sm:border"
       >
         <header className="sticky top-0 flex items-center justify-between border-b border-ink-700
                            bg-ink-900/95 px-5 py-4">
@@ -66,23 +65,23 @@ export function LanguageMenu({
           <Section label="Audio">
             {subs.map((s) => (
               <Row
-                key={s.id}
+                key={s.id || s.url}
                 selected={current?.id === s.id}
                 onClick={() => onPickSource(s)}
-                title={s.label}
+                title={s.label || 'Original Audio'}
                 detail="Original audio with subtitles"
               />
             ))}
             {dubs.map((s) => (
               <Row
-                key={s.id}
+                key={s.id || s.url}
                 selected={current?.id === s.id}
                 onClick={() => onPickSource(s)}
-                title={s.label}
+                title={s.label || 'Dubbed Audio'}
                 detail="Dubbed"
               />
             ))}
-            {payload.sources.length === 0 && (
+            {(!payload.sources || payload.sources.length === 0) && (
               <p className="px-1 py-2 text-meta text-haze">No audio tracks were listed for this episode.</p>
             )}
           </Section>
@@ -93,7 +92,7 @@ export function LanguageMenu({
               onClick={() => onPickSubtitle('off')}
               title="Off"
             />
-            {payload.subtitles.map((s) => (
+            {payload.subtitles?.map((s) => (
               <Row
                 key={s.lang}
                 selected={preferences.subtitleLang === s.lang}
@@ -101,7 +100,7 @@ export function LanguageMenu({
                 title={s.label}
               />
             ))}
-            {payload.subtitles.length === 0 && (
+            {(!payload.subtitles || payload.subtitles.length === 0) && (
               <p className="px-1 py-2 text-meta text-haze">
                 This release did not ship subtitle tracks.
               </p>
@@ -150,8 +149,8 @@ function Row({
       onClick={onClick}
       aria-pressed={selected}
       className={`flex w-full items-center justify-between gap-3 rounded-key px-3 py-3 text-left
-                  transition-colors duration-150
-                  ${selected ? 'bg-ink-700' : 'hover:bg-ink-800'}`}
+                transition-colors duration-150
+                ${selected ? 'bg-ink-700' : 'hover:bg-ink-800'}`}
     >
       <span>
         <span className={`block text-body ${selected ? 'font-semibold text-paper' : 'text-haze'}`}>
