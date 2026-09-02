@@ -96,8 +96,9 @@ export interface StreamSource {
   resolution: string;
   kind?: 'sub' | 'dub';
   language?: string;
-  audioLang?: string; // <-- Add this line
+  audioLang?: string;
   label?: string;
+  type?: string; // <-- Add this property
 }
 
 export interface StreamPayload {
