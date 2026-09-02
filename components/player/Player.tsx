@@ -57,29 +57,26 @@ export function Player({
     setError(null);
     setBuffering(true);
 
-    fetch(`/api/stream?id=${animeId}&ep=${episode}`)
+    fetch(`/api/stream?animeId=${animeId}&episodeId=${episode}`)
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok) throw new Error(body.error ?? 'That episode would not load.');
-        return body as StreamPayload;
+        return body.data as StreamPayload;
       })
       .then((data) => {
         if (!live) return;
         setPayload(data);
-        // Honour the viewer's stored language choice, then their sub/dub
-        // preference, then whatever the provider listed first.
         const sources = data.sources ?? [];
-const pick =
-  sources.find((s) => s.kind === preferences.audio && s.language === preferences.audioLang) ??
-  sources.find((s) => s.kind === preferences.audio) ??
-  sources[0];
-setSource(pick);
+        const pick =
+          sources.find((s) => s.kind === preferences.audio && s.language === preferences.audioLang) ??
+          sources.find((s) => s.kind === preferences.audio) ??
+          sources[0];
+        setSource(pick);
       })
       .catch((e) => live && setError(e.message));
 
     return () => { live = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animeId, episode]);
+  }, [animeId, episode, preferences.audio, preferences.audioLang]);
 
   /* --------------------------------------------------------------- attach */
 
@@ -107,15 +104,13 @@ setSource(pick);
       });
       hls.current = instance;
     } else {
-      // Safari and iOS play HLS natively; mp4 needs nothing special.
       el.src = source.url;
       const seek = () => { if (resumeAt > 0) el.currentTime = resumeAt; };
       el.addEventListener('loadedmetadata', seek, { once: true });
     }
 
     return () => { hls.current?.destroy(); hls.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
+  }, [source, position, startAt]);
 
   /* ------------------------------------------------------------- progress */
 
@@ -124,9 +119,6 @@ setSource(pick);
     if (!el) return;
     setPosition(el.currentTime);
 
-    // Write at most once every five seconds of wall clock. The previous build
-    // tested `Math.floor(currentTime) % 5 === 0`, which is true for every one
-    // of the ~15 timeupdate events inside that second.
     const now = Date.now();
     if (now - lastSaved.current > 5000 && el.duration > 0) {
       lastSaved.current = now;
@@ -224,8 +216,7 @@ setSource(pick);
 
   useEffect(() => {
     if (inIntro && preferences.autoSkipIntro && intro) seekTo(intro[1]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inIntro, preferences.autoSkipIntro]);
+  }, [inIntro, preferences.autoSkipIntro, intro]);
 
   const hasNext = totalEpisodes ? episode < totalEpisodes : true;
 
@@ -285,7 +276,6 @@ setSource(pick);
         </div>
       )}
 
-      {/* Skip intro sits above the controls so it never fights the seek bar. */}
       {inIntro && !preferences.autoSkipIntro && intro && (
         <button
           onClick={() => seekTo(intro[1])}
@@ -352,7 +342,7 @@ setSource(pick);
                 <IconButton label="Audio and subtitles" onClick={() => setMenu((v) => !v)} pressed={menu}>
                   {(payload.subtitles?.length ?? 0) > 0 ? <Subtitles size={20} aria-hidden /> : <Settings size={20} aria-hidden />}
                 </IconButton>
-              )}
+              ) : null}
 
               {hasNext && (
                 <Link
