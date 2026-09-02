@@ -267,7 +267,7 @@ setSource(pick);
         onCanPlay={() => setBuffering(false)}
         style={{ ['--cue-scale' as string]: SUB_SIZE[preferences.subtitleSize] }}
       >
-        {payload?.subtitles.map((s) => (
+        {(payload?.subtitles || []).map((s) => (
           <track
             key={s.lang}
             kind="subtitles"
