@@ -70,7 +70,7 @@ export function Player({
         // preference, then whatever the provider listed first.
         const sources = data.sources ?? [];
 const pick =
-  sources.find((s) => s.kind === preferences.audio && s.audioLang === preferences.audioLang) ??
+  sources.find((s) => s.kind === preferences.audio && s.language === preferences.audioLang) ??
   sources.find((s) => s.kind === preferences.audio) ??
   sources[0];
 setSource(pick);
