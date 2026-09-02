@@ -1,5 +1,3 @@
-// hooks/useAnimeSearch.ts
-
 import { useState, useEffect, useCallback } from 'react';
 import { fetchAnimeData, AnimeQueryParams } from '@/services/animeApi';
 
@@ -32,14 +30,7 @@ export const useAnimeSearch = (initialParams?: AnimeQueryParams) => {
   }, [filters, loadAnime]);
 
   const updateFilters = (newFilters: Partial<AnimeQueryParams>) => {
-    setFilters((prev) => ({ ...prev, ...newFilters, page: 1 })); // Reset to page 1 on filter change
-  };
-
-  const loadMore = () => {
-    if (pageInfo.hasNextPage && !loading) {
-      const nextPage = (filters.page || 1) + 1;
-      setFilters((prev) => ({ ...prev, page: nextPage }));
-    }
+    setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }));
   };
 
   return {
@@ -48,6 +39,5 @@ export const useAnimeSearch = (initialParams?: AnimeQueryParams) => {
     pageInfo,
     filters,
     updateFilters,
-    loadMore,
   };
 };
