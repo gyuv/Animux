@@ -2,19 +2,133 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Device density. One attribute on <html> retunes the whole app:
+   type scale, gutters, nav width, focus weight. Porting to TV or
+   an Android shell means setting this attribute, not rewriting CSS.
+   ============================================================ */
+:root {
+  --density: 1;
+  --gutter: 20px;
+  --rail-w: 0px;
+  --focus-w: 2px;
+  --chroma: 182 173 200;         /* neutral until artwork resolves */
+  --ease-physical: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-device='mobile'] {
+  --density: 0.94;
+  --gutter: 16px;
+  --rail-w: 0px;
+}
+
+[data-device='desktop'] {
+  --density: 1;
+  --gutter: 32px;
+  --rail-w: 76px;
+}
+
+[data-device='tv'] {
+  --density: 1.35;
+  --gutter: 64px;
+  --rail-w: 132px;
+  --focus-w: 4px;
+}
+
 @layer base {
+  html {
+    background-color: #0E0B16;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    background-color: #0a0a0c;
-    color: #ffffff;
+    @apply bg-ink-900 text-paper font-sans antialiased;
+    /* Respect notches and Android gesture bars from day one. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    overscroll-behavior-y: none;
+  }
+
+  /* One focus treatment for keyboard, remote and switch control.
+     Tinted with the artwork currently in view. */
+  :focus-visible {
+    outline: var(--focus-w) solid rgb(var(--chroma));
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: rgb(var(--chroma) / 0.35);
   }
 }
 
-/* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+@layer components {
+  .gutter-x {
+    padding-left: var(--gutter);
+    padding-right: var(--gutter);
+  }
+
+  /* Horizontal rails: free-scrolling on pointer devices, snapping on
+     touch and remote so a flick or a D-pad press always lands cleanly. */
+  .rail-scroll {
+    @apply flex gap-3 overflow-x-auto scroll-smooth;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    scroll-padding-left: var(--gutter);
+  }
+  .rail-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  .rail-scroll > * {
+    scroll-snap-align: start;
+  }
+
+  .key {
+    @apply inline-flex items-center justify-center gap-2 rounded-key
+           px-5 py-3 text-meta font-semibold transition-all duration-200;
+    transition-timing-function: var(--ease-physical);
+  }
+
+  .key-primary {
+    @apply key bg-paper text-ink-900;
+  }
+  .key-primary:hover {
+    box-shadow: 0 0 0 1px rgb(var(--chroma) / 0.5), 0 8px 30px rgb(var(--chroma) / 0.3);
+    transform: translateY(-1px);
+  }
+
+  .key-ghost {
+    @apply key border border-ink-600 bg-ink-800/70 text-paper backdrop-blur-md;
+  }
+  .key-ghost:hover {
+    @apply border-ink-600/0 bg-ink-700;
+    border-color: rgb(var(--chroma) / 0.6);
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-ink-800;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.045), transparent);
+    animation: sheen 1.8s var(--ease-physical) infinite;
+  }
 }
-/* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+
+@keyframes sheen {
+  from { transform: translateX(-120%); }
+  to   { transform: translateX(220%); }
+}
+
+/* Never animate for people who asked us not to. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

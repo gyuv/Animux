@@ -1,55 +1,81 @@
-'use client';
+import { searchAnime, AniListError } from '@/services/anilist';
+import { Hero } from '@/components/media/Hero';
+import { Rail } from '@/components/media/Rail';
+import { PosterCard } from '@/components/media/PosterCard';
+import { ContinueShelf } from '@/components/media/ContinueShelf';
+import { EmptyState } from '@/components/ui/EmptyState';
+import Link from 'next/link';
 
-import React from 'react';
-import { useAnimeSearch } from '@/hooks/useAnimeSearch';
-import { MediaCard } from '@/components/media/MediaCard';
-import { AdvancedSearch } from '@/components/search/AdvancedSearch';
-import { useTVNavigation } from '@/hooks/useTVNavigation';
+export const revalidate = 3600;
 
-export default function ExplorePage() {
-  useTVNavigation();
-  const { data, loading, updateFilters } = useAnimeSearch();
+function currentSeason() {
+  const m = new Date().getMonth();
+  const season = m < 3 ? 'WINTER' : m < 6 ? 'SPRING' : m < 9 ? 'SUMMER' : 'FALL';
+  return { season, year: new Date().getFullYear() };
+}
+
+export default async function HomePage() {
+  const { season, year } = currentSeason();
+
+  let shelves;
+  try {
+    shelves = await Promise.all([
+      searchAnime({ sort: 'TRENDING_DESC', perPage: 20 }),
+      searchAnime({ season, year, status: 'RELEASING', sort: 'POPULARITY_DESC', perPage: 20 }),
+      searchAnime({ sort: 'SCORE_DESC', perPage: 20, minScore: 80 }),
+      searchAnime({ genres: ['Slice of Life'], sort: 'SCORE_DESC', perPage: 20 }),
+    ]);
+  } catch (error) {
+    return (
+      <EmptyState
+        title="The catalogue is not answering"
+        body={error instanceof AniListError ? error.message : 'Something went wrong loading the catalogue.'}
+        action={<Link href="/" className="key-primary">Try again</Link>}
+      />
+    );
+  }
+
+  const [trending, airing, top, calm] = shelves;
+  const feature = trending.media[0];
+  const rest = trending.media.slice(1);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white p-6 md:p-12">
-      <h1 className="text-4xl font-extrabold tracking-tight mb-8 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400">
-        Animux Catalog
-      </h1>
-      
-      <AdvancedSearch 
-        isOpen={true} 
-        onClose={() => {}} 
-        onSearch={(searchFilters) => {
-          updateFilters({
-            search: searchFilters.query,
-            genres: searchFilters.genre,
-            status: searchFilters.status[0],
-          });
-        }} 
-      />
+    <>
+      {feature && <Hero anime={feature} />}
 
-      {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {[...Array(10)].map((_, i) => (
-            <div key={i} className="aspect-[2/3] bg-white/5 animate-pulse rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {data.map((anime) => (
-            <MediaCard
-              key={anime.id}
-              id={anime.id.toString()}
-              title={anime.title.english || anime.title.romaji}
-              image={anime.coverImage.extraLarge || anime.coverImage.large}
-              rating={anime.averageScore ? anime.averageScore / 10 : 0}
-              isNew={anime.status === 'RELEASING'}
-              episodeCount={anime.episodes?.toString()}
-              onClick={(id) => console.log('Selected Anime ID:', id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      <ContinueShelf />
+
+      <Rail
+        title="Trending this week"
+        action={<Link href="/browse?sort=TRENDING_DESC" className="text-meta text-haze hover:text-paper">See all</Link>}
+      >
+        {rest.map((a, i) => (
+          <PosterCard key={a.id} anime={a} priority={i < 4} />
+        ))}
+      </Rail>
+
+      <Rail title="Airing now" note="New episodes landing this season">
+        {airing.media.map((a) => (
+          <PosterCard key={a.id} anime={a} />
+        ))}
+      </Rail>
+
+      <Rail
+        title="Highest rated"
+        action={<Link href="/browse?sort=SCORE_DESC" className="text-meta text-haze hover:text-paper">See all</Link>}
+      >
+        {top.media.map((a) => (
+          <PosterCard key={a.id} anime={a} />
+        ))}
+      </Rail>
+
+      <Rail title="Something gentler" note="Slower stories, low stakes">
+        {calm.media.map((a) => (
+          <PosterCard key={a.id} anime={a} />
+        ))}
+      </Rail>
+
+      <div className="h-10" />
+    </>
   );
 }
