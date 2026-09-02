@@ -90,11 +90,13 @@ async function checkStreamHealth(url: string): Promise<boolean> {
 }
 
 export interface StreamSource {
+  id?: string;         // <-- Added optional id
   url: string;
   bitrate: number;
   resolution: string;
-  kind?: 'sub' | 'dub'; // <-- Added 'kind' to differentiate sub/dub
-  language?: string;     // <-- Optional: e.g. 'English', 'Japanese'
+  kind?: 'sub' | 'dub';
+  language?: string;
+  label?: string;      // <-- Added optional label
 }
 
 export interface StreamPayload {
