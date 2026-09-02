@@ -88,17 +88,20 @@ async function checkStreamHealth(url: string): Promise<boolean> {
     return false;
   }
 }
-// Add 'export' in front of your interfaces/types
+
 export interface StreamSource {
   url: string;
   bitrate: number;
   resolution: string;
+  kind?: 'sub' | 'dub'; // <-- Added 'kind' to differentiate sub/dub
+  language?: string;     // <-- Optional: e.g. 'English', 'Japanese'
 }
 
 export interface StreamPayload {
   animeId: string;
   episodeId: string;
   streamUrl: string;
+  sources?: StreamSource[]; // <-- Added this property
   subtitles?: any[];
   meta?: {
     title: string;
