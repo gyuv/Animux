@@ -1,7 +1,8 @@
-import { NextResponse } from '/server';
-import prisma } '@/lib/prisma// ---- Types
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export interfaceSource {
+
+export interface StreamSource {
   id?: string;
  : string;
   bitrate: number  resolution: string;
