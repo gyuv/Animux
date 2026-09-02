@@ -34,9 +34,11 @@ export interface StreamPayload {
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
   drmConfig?: DrmConfig | null;
+  duration?: number; // Add this at the top level
   meta?: {
     title: string;
     thumbnail: string;
+    duration?: number; // Optional: if you still want it in meta
   };
   chapters?: {
     intro: [number, number] | null;
