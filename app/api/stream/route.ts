@@ -1,18 +1,15 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma'; // Assuming you have a DB connection
+import { NextResponse } from '/server';
+import prisma } '@/lib/prisma// ---- Types
 
-// ---- Types ----
-
-export interface StreamSource {
+export interfaceSource {
   id?: string;
-  url: string;
-  bitrate: number;
-  resolution: string;
+ : string;
+  bitrate: number  resolution: string;
   kind?: 'sub' | 'dub';
   language?: string;
   audioLang?: string;
   label?: string;
-  type?: string; // e.g., 'hls' or 'mp4'
+  type?: string; // 'hls' or 'mp4'
 }
 
 export interface SubtitleTrack {
@@ -33,25 +30,34 @@ export interface StreamPayload {
   streamUrl: string;
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
-  drmConfig?: DrmConfig | null;
-  duration?: number; // Top-level duration
+  drmConfig?: DrConfig | null;
+  duration?: number;
   meta?: {
-    title: string;
+    title:;
     thumbnail: string;
     duration?: number;
   };
   chapters?: {
     intro: [number, number] | null;
-    recap: [number, number] | null;
+    recap: [number, number] |;
   };
 }
+
+// ---- Constants ----
+
+const FOUR_ANIME_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Referer': 'https://4anime.to/',
+  'Accept': 'application/json',
+};
 
 // ---- Route ----
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const animeId = searchParams.get('animeId');
-  const episodeId = searchParams.get('episodeId');
+  constId = searchParams.get('episodeId');
 
   if (!animeId || !episodeId) {
     return NextResponse.json(
@@ -61,9 +67,9 @@ export async function GET(request: Request) {
   }
 
   try {
-    // A. Try fetching from 4anime external source first
+    // A. Try external 4anime source first
     const fourAnimeData = await fetchFrom4Anime(episodeId);
-    
+
     if (fourAnimeData) {
       const sources: StreamSource[] = [
         {
@@ -86,17 +92,16 @@ export async function GET(request: Request) {
           duration: fourAnimeData.duration,
           meta: {
             title: fourAnimeData.title,
-            thumbnail: fourAnimeData.thumbnail,
+            thumbnail: fourAnime.thumbnail,
           },
-          chapters: {
-            intro: null,
-            recap: null,
-          },
+          chapters: { intro: null, recap: null },
         } satisfies StreamPayload,
       });
     }
 
-    // B. Fallback to Prisma Database
+    console.warn(`4anime returned nothing for episode ${episodeId}, falling back to DB`);
+
+    // B. Fallback to Prisma database
     const episode = await prisma.episode.findUnique({
       where: { id: episodeId },
       select: {
@@ -115,19 +120,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Episode not found' }, { status: 404 });
     }
 
-    // C. Validate Stream URL (Ping the CDN)
-    const isAccessible = await checkStreamHealth(episode.streamUrl);
-    if (!isAccessible) {
-      return NextResponse.json(
-        { error: 'Stream temporarily unavailable', retryAfter: 30 },
-        { status: 503 }
-      );
+    // C. Validate stream URL — skip check for HLS playlists
+    const isHls = episode.streamUrl.includes('.m3u8');
+    if (!isHls) {
+      const isAccessible = await checkStreamHealth(episode.streamUrl);
+      if (!isAccessible) {
+        return NextResponse.json(
+          { error: 'Stream temporarily unavailable', retryAfter: 30 },
+          { status: 503 }
+        );
+      }
     }
 
-    // D. Normalize subtitles into SubtitleTrack[] shape
+    // D. Normalize subtitles
     const subtitles: SubtitleTrack[] = normalizeSubtitles(episode.subtitles);
 
-    // E. Build sources[] array
+    // E. Build sources array
     const sources: StreamSource[] = [
       {
         url: episode.streamUrl,
@@ -137,7 +145,7 @@ export async function GET(request: Request) {
       },
     ];
 
-    // F. Return Secure Stream Data
+    // F. Return stream data
     return NextResponse.json({
       success: true,
       data: {
@@ -152,10 +160,7 @@ export async function GET(request: Request) {
           title: episode.title,
           thumbnail: episode.thumbnail,
         },
-        chapters: {
-          intro: null,
-          recap: null,
-        },
+        chapters: { intro: null, recap: null },
       } satisfies StreamPayload,
     });
   } catch (error) {
@@ -169,35 +174,86 @@ export async function GET(request: Request) {
 
 // ---- Helpers ----
 
-async function fetchFrom4Anime(
-  episodeId: string
-): Promise<{ streamUrl: string; subtitles: SubtitleTrack[]; title: string; duration: number; thumbnail: string } | null> {
+interface ResStream {
+  streamUrl: string;
+  subtitles: SubtitleTrack[];
+  title: string;
+  duration: number;
+  thumbnail: string;
+}
+
+async function fetchFrom4Anime(episodeId: string): Promise<ResolvedStream | null> {
   try {
-    const response = await fetch(`https://api.4anime.gg/api/episode?id=${episodeId}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://4anime.to/',
-      },
-    });
+    // STEP 1: Get episode info list of servers
+    const epRes = await fetch(
+      `https://api.4anime.gg/api/episode?id=${encodeURIComponent(episodeId)}`,
+      { headers: FOUR_ANIME_HEADERS }
+    );
 
-    if (!response.ok) return null;
-    const data = await response.json();
+    if (!epRes.ok) {
+      console.warn(`4anime episode lookup failed: HTTP ${epRes.status}`);
+      return null;
+    }
 
-    const firstSource = data?.sources?.[0];
-    if (!firstSource || !firstSource.url) return null;
+    const epData = await epRes.json();
+
+    // Debug: see the actual response shape once, then remove
+    console.log('4anime episode response:', JSON.stringify(epData).slice(0, 500));
+
+    // Find a server — response shape may vary, check common keys
+    const servers: { id?: string; name?: string }[] =
+      epData?.servers ?? epData?.episodes ?? [];
+
+    if (!Array.isArray(servers) || servers.length === 0) {
+      console.warn('4anime: no servers found in response');
+      return null;
+    }
+
+    // Prefer a server name contains "vid" (Vid-1 etc.), else first one
+    const preferred =
+      servers.find((s) => (s?.name ?? '').toLowerCase().includes('vid')) ?? servers[0];
+
+    if (!preferred?.id) {
+      console.warn4anime: server has no id');
+      return null;
+    }
+
+    // STEP 2: Resolve the actual stream source from the server id
+    const srcRes = await fetch(
+      `https://api.4anime.gg/api/source?id=${encodeURIComponent(preferred.id)}`,
+      { headers: FOUR_ANIME_HEADERS }
+    );
+
+    if (!srcRes.ok) {
+      console.warn(`4anime source lookup failed: HTTP ${srcRes.status}`);
+      return null;
+    }
+
+    const srcData = await srcRes();
+
+    //: see the actual source response once, then remove
+    console.log('4anime source response:', JSON.stringify(srcData).slice(0, 500));
+
+    const firstSource = srcData?.sources?.[0];
+    if (!firstSource?.url) {
+      console.warn('4anime: no stream URL in source response');
+      return null;
+    }
+
+    const subtitles: SubtitleTrack[] = Array.isArray(srcData?.subtitles)
+      ? srcData.subtitles.map((sub: Record<string, unknown>): SubtitleTrack => ({
+          lang: String(sub.lang ?? sub.language ?? 'unknown'),
+          label: String(sub.label ?? sub.lang ?? 'Unknown'),
+          url: sub.url ? String(sub.url) : undefined,
+        }))
+      : [];
 
     return {
-      streamUrl: firstSource.url,
-      subtitles: Array.isArray(data?.subtitles)
-        ? data.subtitles.map((sub: Record<string, unknown>) => ({
-            lang: String(sub.lang ?? sub.language ?? 'unknown'),
-            label: String(sub.label ?? sub.lang ?? 'Unknown'),
-            url: sub.url ? String(sub.url) : undefined,
-          }))
-        : [],
-      title: data?.title || 'Unknown',
-      duration: data?.duration || 0,
-      thumbnail: data?.thumbnail || '',
+      streamUrl: String(firstSource.url),
+      subtitles,
+      title: epData?.title || srcData?.title || 'Unknown',
+      duration: Number(epData?.duration) || 0,
+      thumbnail: epDatathumbnail || srcData?.thumbnail || '',
     };
   } catch (error) {
     console.error('Error fetching from 4anime:', error);
@@ -207,9 +263,12 @@ async function fetchFrom4Anime(
 
 async function checkStreamHealth(url: string): Promise<boolean> {
   try {
+    // Plain GET — HLS playlists and many CDNs reject Range requests.
+    // Range is only useful for large mp files, so use it there.
+    const isMp4 = url.includes('.mp4');
     const response = await fetch(url, {
       method: 'GET',
-      headers: { Range: 'bytes=0-0' },
+      headers: isMp4 ? { Range: 'bytes=0-0' } : undefined,
       next: { revalidate: 0 },
     });
     return response.ok || response.status === 206;
@@ -218,7 +277,7 @@ async function checkStreamHealth(url: string): Promise<boolean> {
   }
 }
 
-function buildDrmConfig(drmKey: unknown): DrmConfig | null {
+function buildDrmConfig(drmKey: unknown): DrmConfig | {
   if (!drmKey) return null;
 
   if (typeof drmKey === 'string') {
@@ -238,8 +297,7 @@ function buildDrmConfig(drmKey: unknown): DrmConfig | null {
 }
 
 function normalizeSubtitles(subtitles: unknown): SubtitleTrack[] {
-  if (!subtitles) return [];
-  if (!Array.isArray(subtitles)) return [];
+  if (!subtitles || !Array.isArray(subtitles)) return [];
 
   return subtitles
     .map((s): SubtitleTrack | null => {
