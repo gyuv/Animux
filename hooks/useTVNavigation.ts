@@ -8,11 +8,9 @@ export const useTVNavigation = () => {
       ) as HTMLElement[];
       
       const currentIndex = focusableElements.indexOf(document.activeElement as HTMLElement);
-
       if (currentIndex === -1) return;
 
       let nextIndex = currentIndex;
-
       switch (e.key) {
         case 'ArrowRight':
           nextIndex = (currentIndex + 1) % focusableElements.length;
@@ -21,7 +19,6 @@ export const useTVNavigation = () => {
           nextIndex = (currentIndex - 1 + focusableElements.length) % focusableElements.length;
           break;
         case 'ArrowDown':
-          // Simplified row skipping (assuming ~4 items per row)
           nextIndex = Math.min(currentIndex + 4, focusableElements.length - 1);
           break;
         case 'ArrowUp':
