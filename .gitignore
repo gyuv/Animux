@@ -2,3 +2,9 @@ node_modules
 node_modules/
 
 /lib/generated/prisma
+.env
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
+tsconfig.tsbuildinfo
