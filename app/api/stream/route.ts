@@ -98,15 +98,21 @@ export interface StreamSource {
   language?: string;
   audioLang?: string;
   label?: string;
-  type?: string; // <-- Add this property
+  type?: string; // e.g., 'hls' or 'mp4'
+}
+
+export interface SubtitleTrack {
+  lang: string;
+  label: string;
+  url?: string;
 }
 
 export interface StreamPayload {
   animeId: string;
   episodeId: string;
   streamUrl: string;
-  sources?: StreamSource[]; // <-- Added this property
-  subtitles?: any[];
+  sources?: StreamSource[];
+  subtitles?: SubtitleTrack[];
   meta?: {
     title: string;
     duration: number;
