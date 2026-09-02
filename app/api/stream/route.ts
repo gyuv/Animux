@@ -32,16 +32,16 @@ export interface StreamPayload {
   streamUrl: string;
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
-  drmConfig?: DrConfig | null;
+  drmConfig?: DrmConfig | null;
   duration?: number;
   meta?: {
-    title:;
+    title: string;
     thumbnail: string;
     duration?: number;
   };
   chapters?: {
     intro: [number, number] | null;
-    recap: [number, number] |;
+    recap: [number, number] | null;
   };
 }
 
@@ -59,7 +59,7 @@ const FOUR_ANIME_HEADERS = {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const animeId = searchParams.get('animeId');
-  constId = searchParams.get('episodeId');
+  const episodeId = searchParams.get('episodeId');
 
   if (!animeId || !episodeId) {
     return NextResponse.json(
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
     if (fourAnimeData) {
       const sources: StreamSource[] = [
         {
-          url: fourAnimeData.streamUrl,
+          url: fourAnimeData.streamUrl ?? '',
           bitrate: 0,
           resolution: 'auto',
           type: 'hls',
@@ -87,14 +87,14 @@ export async function GET(request: Request) {
         data: {
           animeId,
           episodeId,
-          streamUrl: fourAnimeData.streamUrl,
+          streamUrl: fourAnimeData.streamUrl ?? '',
           sources,
           subtitles: fourAnimeData.subtitles,
           drmConfig: null,
           duration: fourAnimeData.duration,
           meta: {
-            title: fourAnimeData.title,
-            thumbnail: fourAnime.thumbnail,
+            title: fourAnimeData.title ?? '',
+            thumbnail: fourAnimeData.thumbnail ?? '',
           },
           chapters: { intro: null, recap: null },
         } satisfies StreamPayload,
@@ -183,6 +183,15 @@ interface ResStream {
   duration: number;
   thumbnail: string;
 }
+interface ResolvedStream {
+  sources: StreamSource[];
+  subtitles: SubtitleTrack[];
+  streamUrl?: string;
+  title?: string;
+  duration?: number;
+  thumbnail?: string;
+  drm?: DrmConfig | null;
+}
 
 async function fetchFrom4Anime(episodeId: string): Promise<ResolvedStream | null> {
   try {
@@ -216,7 +225,7 @@ async function fetchFrom4Anime(episodeId: string): Promise<ResolvedStream | null
       servers.find((s) => (s?.name ?? '').toLowerCase().includes('vid')) ?? servers[0];
 
     if (!preferred?.id) {
-      console.warn4anime: server has no id');
+      console.warn('4anime: server has no id');
       return null;
     }
 
@@ -231,7 +240,7 @@ async function fetchFrom4Anime(episodeId: string): Promise<ResolvedStream | null
       return null;
     }
 
-    const srcData = await srcRes();
+    const srcData = await srcRes.json();
 
     //: see the actual source response once, then remove
     console.log('4anime source response:', JSON.stringify(srcData).slice(0, 500));
@@ -251,11 +260,12 @@ async function fetchFrom4Anime(episodeId: string): Promise<ResolvedStream | null
       : [];
 
     return {
+      sources: [],
       streamUrl: String(firstSource.url),
       subtitles,
       title: epData?.title || srcData?.title || 'Unknown',
       duration: Number(epData?.duration) || 0,
-      thumbnail: epDatathumbnail || srcData?.thumbnail || '',
+      thumbnail: epData.thumbnail || srcData?.thumbnail || '',
     };
   } catch (error) {
     console.error('Error fetching from 4anime:', error);
@@ -279,7 +289,7 @@ async function checkStreamHealth(url: string): Promise<boolean> {
   }
 }
 
-function buildDrmConfig(drmKey: unknown): DrmConfig | {
+function buildDrmConfig(drmKey: unknown): DrmConfig | null {
   if (!drmKey) return null;
 
   if (typeof drmKey === 'string') {
@@ -297,7 +307,6 @@ function buildDrmConfig(drmKey: unknown): DrmConfig | {
 
   return null;
 }
-
 function normalizeSubtitles(subtitles: unknown): SubtitleTrack[] {
   if (!subtitles || !Array.isArray(subtitles)) return [];
 
