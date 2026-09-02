@@ -6,6 +6,7 @@ interface SearchFilters {
   status: string[];
   genre: string[];
   audio: string[];
+  [key: string]: string | string[]; // Index signature for dynamic access
 }
 
 interface AdvancedSearchProps {
@@ -24,7 +25,7 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen
   });
 
   const toggleFilter = (category: keyof SearchFilters, value: string) => {
-    const current = activeFilters[category];
+    const current = (activeFilters[category] as string[]) || [];
     const updated = current.includes(value)
       ? current.filter((f: string) => f !== value)
       : [...current, value];
@@ -35,9 +36,9 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen
   };
 
   const categories = [
-    { label: 'Status', options: ['Ongoing', 'Completed'] },
-    { label: 'Audio', options: ['Sub', 'Dub'] },
-    { label: 'Genre', options: ['Action', 'Romance', 'Isekai', 'Mecha'] }
+    { label: 'Status', key: 'status', options: ['Ongoing', 'Completed'] },
+    { label: 'Audio', key: 'audio', options: ['Sub', 'Dub'] },
+    { label: 'Genre', key: 'genre', options: ['Action', 'Romance', 'Isekai', 'Mecha'] }
   ];
 
   if (!isOpen) return null;
@@ -52,27 +53,32 @@ export const AdvancedSearch: React.FC<AdvancedSearchProps> = ({ onSearch, isOpen
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            onSearch({ ...activeFilters, query: e.target.value });
+            const newFilters = { ...activeFilters, query: e.target.value };
+            setActiveFilters(newFilters);
+            onSearch(newFilters);
           }}
         />
       </div>
 
       <div className="p-4 flex gap-4 overflow-x-auto">
-        {categories.map((f) => (
-          <div key={f.label} className="relative group">
+        {categories.map((cat) => (
+          <div key={cat.key} className="relative group">
             <button className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm text-gray-300 transition-colors">
-              {f.label} <ChevronDown size={14} />
+              {cat.label} <ChevronDown size={14} />
             </button>
             <div className="absolute top-full left-0 mt-2 w-48 bg-[#1e1e24] border border-white/10 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-20">
-              {f.options.map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => toggleFilter(f.label.toLowerCase() as keyof SearchFilters, opt)}
-                  className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 ${activeFilters[f.label.toLowerCase() as keyof SearchFilters]?.includes(opt) ? 'text-cyan-400' : 'text-gray-300'}`}
-                >
-                  {opt}
-                </button>
-              ))}
+              {cat.options.map(opt => {
+                const isSelected = (activeFilters[cat.key] as string[])?.includes(opt);
+                return (
+                  <button
+                    key={opt}
+                    onClick={() => toggleFilter(cat.key, opt)}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-white/5 ${isSelected ? 'text-cyan-400 font-semibold' : 'text-gray-300'}`}
+                  >
+                    {opt}
+                  </button>
+                );
+              })}
             </div>
           </div>
         ))}
