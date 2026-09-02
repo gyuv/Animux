@@ -68,11 +68,12 @@ export function Player({
         setPayload(data);
         // Honour the viewer's stored language choice, then their sub/dub
         // preference, then whatever the provider listed first.
-        const pick =
-          data.sources.find((s) => s.kind === preferences.audio && s.audioLang === preferences.audioLang) ??
-          data.sources.find((s) => s.kind === preferences.audio) ??
-          data.sources[0];
-        setSource(pick);
+        const sources = data.sources ?? [];
+const pick =
+  sources.find((s) => s.kind === preferences.audio && s.audioLang === preferences.audioLang) ??
+  sources.find((s) => s.kind === preferences.audio) ??
+  sources[0];
+setSource(pick);
       })
       .catch((e) => live && setError(e.message));
 
