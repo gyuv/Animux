@@ -94,3 +94,20 @@ git rm -r --cached .next
 git commit -m "Stop tracking build output"
 ```
 
+
+## Files that must be deleted, not overwritten
+
+Extracting a zip over a repo adds and overwrites files, but it cannot remove
+ones that are no longer wanted. These are stale and should be deleted from git:
+
+```
+git rm -f --ignore-unmatch prisma7.config.ts services/anilist.ts.bak
+git rm -r --cached --ignore-unmatch .next
+git commit -m "Remove stale generated files from the repo"
+```
+
+`prisma7.config.ts` is the one that matters: it imports `prisma/config`, a
+Prisma 7 API that does not exist in the pinned Prisma 5, and `tsconfig.json`
+picks up every `.ts` file in the tree. The build is defended against it by an
+entry in `tsconfig.json`'s `exclude` list, so it will not break the build if it
+stays — but there is no reason to keep it.
