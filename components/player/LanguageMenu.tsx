@@ -1,5 +1,7 @@
 'use client';
-
+// Inside components/player/LanguageMenu.tsx
+const dubs = payload.sources?.filter((s) => s.kind === 'dub') ?? [];
+const subs = payload.sources?.filter((s) => s.kind === 'sub') ?? [];
 import { Check, X } from 'lucide-react';
 import type { StreamPayload, StreamSource } from '@/app/api/stream/route';
 import type { Preferences } from '@/store/useLibrary';
