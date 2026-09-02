@@ -1,5 +1,3 @@
-// services/animeApi.ts
-
 const ANILIST_API_URL = 'https://graphql.anilist.co';
 
 export interface AnimeQueryParams {
@@ -11,7 +9,6 @@ export interface AnimeQueryParams {
   perPage?: number;
 }
 
-// Optimized GraphQL query for advanced multi-parametric search
 const ANIME_SEARCH_QUERY = `
   query ($search: String, $genres: [String], $status: MediaStatus, $sort: [MediaSort], $page: Int, $perPage: Int) {
     Page(page: $page, perPage: $perPage) {
@@ -44,12 +41,6 @@ const ANIME_SEARCH_QUERY = `
             name
           }
         }
-        streamingEpisodes {
-          title
-          thumbnail
-          url
-          site
-        }
       }
     }
   }
@@ -77,7 +68,6 @@ export async function fetchAnimeData(params: AnimeQueryParams) {
         query: ANIME_SEARCH_QUERY,
         variables,
       }),
-      // Leverage Vercel's Edge/ISR caching (cache for 1 hour)
       next: { revalidate: 3600 },
     });
 
