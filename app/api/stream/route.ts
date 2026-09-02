@@ -34,11 +34,12 @@ export interface StreamPayload {
   sources?: StreamSource[];
   subtitles?: SubtitleTrack[];
   drmConfig?: DrmConfig | null;
-  duration?: number; // Keep only ONE of these
-  meta: {
-  title: fourAnimeData.title,
-  thumbnail: fourAnimeData.thumbnail,
-},
+  duration?: number; // Top-level duration
+  meta?: {
+    title: string;
+    thumbnail: string;
+    duration?: number;
+  };
   chapters?: {
     intro: [number, number] | null;
     recap: [number, number] | null;
@@ -82,11 +83,15 @@ export async function GET(request: Request) {
           sources,
           subtitles: fourAnimeData.subtitles,
           drmConfig: null,
+          duration: fourAnimeData.duration,
           meta: {
-  title: fourAnimeData.title,
-  thumbnail: fourAnimeData.thumbnail,
-  duration: fourAnimeData.duration, // Add this line here
-},
+            title: fourAnimeData.title,
+            thumbnail: fourAnimeData.thumbnail,
+          },
+          chapters: {
+            intro: null,
+            recap: null,
+          },
         } satisfies StreamPayload,
       });
     }
@@ -142,10 +147,14 @@ export async function GET(request: Request) {
         sources,
         subtitles,
         drmConfig: buildDrmConfig(episode.drmKey),
+        duration: episode.duration,
         meta: {
           title: episode.title,
-          duration: episode.duration,
           thumbnail: episode.thumbnail,
+        },
+        chapters: {
+          intro: null,
+          recap: null,
         },
       } satisfies StreamPayload,
     });
