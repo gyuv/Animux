@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       {
         error: (error as any).viewerMessage || error.message,
         detail: error.message,
-        kind: error.kind,
+        kind: (error as any).kind || 'unknown',
         media: [],
         pageInfo: { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false },
       },
