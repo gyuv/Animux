@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     // Retry-After the browser can actually act on — never a bare 403 passthrough.
     return NextResponse.json(
       {
-        error: error.viewerMessage,
+        error: (error as any).viewerMessage || error.message,
         detail: error.message,
         kind: error.kind,
         media: [],
