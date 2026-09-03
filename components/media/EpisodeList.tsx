@@ -180,6 +180,11 @@ export function EpisodeList({
 type Entry = { position: number; duration: number } | undefined;
 type Meta = { title: string | null; thumbnail: string | null } | undefined;
 
+/** The https form of an http URL, or null when there is nothing to retry. */
+function httpsForm(url: string): string | null {
+  return url.startsWith('http://') ? `https://${url.slice(7)}` : null;
+}
+
 const ratio = (entry: Entry) =>
   entry && entry.duration > 0 ? (entry.position / entry.duration) * 100 : 0;
 
@@ -194,15 +199,35 @@ function EpisodeCard({
   const pct = ratio(entry);
   const done = pct >= 92;
 
+  /* A thumbnail URL existing is not the same as it loading. These point at a
+     dozen third-party CDNs whose records go stale, and several refuse requests
+     carrying a Referer from anywhere but their own site — so a dead image has
+     to fall back to the numbered panel rather than leave a blank frame, which
+     is what the card did before.
+
+     One retry sits in between: a number of AniList's older records still carry
+     `http://` thumbnails, which an https deployment blocks as mixed content
+     silently. Retrying the same URL over https recovers those, and trying the
+     original first keeps http development working. */
+  const [attempt, setAttempt] = useState(0);
+  const original = meta?.thumbnail ?? null;
+  const retry = original ? httpsForm(original) : null;
+  const thumbnail = attempt === 0 ? original : attempt === 1 ? retry : null;
+
+  const onImageError = () => setAttempt((a) => (a === 0 && retry ? 1 : 2));
+
   const body = (
     <>
       <span className="relative block aspect-video overflow-hidden rounded-art bg-ink-800">
-        {meta?.thumbnail ? (
+        {thumbnail ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={meta.thumbnail}
+            key={thumbnail}
+            src={thumbnail}
             alt=""
             loading="lazy"
+            referrerPolicy="no-referrer"
+            onError={onImageError}
             className="h-full w-full object-cover transition-transform duration-500 ease-physical
                        group-hover:scale-[1.04]"
           />
