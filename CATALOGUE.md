@@ -54,6 +54,8 @@ banner above the content rather than replacing it.
 | `ANIWATCH_API_URL` | — | Your Aniwatch deployment. Fallback for the above |
 | `STREAM_PROXY_SECRET` | random per process | **Set this.** 32+ random characters; signs proxy URLs |
 | `STREAM_PROXY_USER_AGENT` | a desktop Chrome string | Sent upstream alongside the Referer |
+| `HIANIME_ENABLED` | on | Set to `0` to turn off all in-process scraping |
+| `ANIME_PROVIDERS` | `animepahe,animekai` | In-process Consumet providers to try, in order. Also available: `hianime`, `animesaturn` and `animeunity` (Italian), `animesama` (French) |
 
 ## Caching
 

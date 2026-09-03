@@ -21,9 +21,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 
 export const revalidate = 43200;
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const { anime } = await getAnime(Number(params.id));
+    const { anime } = await getAnime(Number(id));
     const description = stripHtml(anime.description).slice(0, 160);
     const image = anime.coverImage.extraLarge ?? undefined;
 
@@ -41,8 +42,9 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   }
 }
 
-export default async function TitlePage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default async function TitlePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: rawId } = await params;
+  const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();
 
   let anime;

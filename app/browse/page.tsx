@@ -17,22 +17,23 @@ const many = (v: string | string[] | undefined): string[] =>
 const one = (v: string | string[] | undefined): string | undefined =>
   Array.isArray(v) ? v[0] : v;
 
-export default async function BrowsePage({ searchParams }: { searchParams: SP }) {
-  const page = Math.max(1, Number(one(searchParams.page) ?? 1) || 1);
+export default async function BrowsePage({ searchParams }: { searchParams: Promise<SP> }) {
+  const query = await searchParams;
+  const page = Math.max(1, Number(one(query.page) ?? 1) || 1);
 
   let result;
   try {
     result = await searchAnime({
-      search: one(searchParams.q),
-      genres: many(searchParams.genre),
-      excludeGenres: many(searchParams.not),
-      tags: many(searchParams.tag),
-      formats: many(searchParams.format),
-      status: one(searchParams.status),
-      season: one(searchParams.season),
-      year: searchParams.year ? Number(one(searchParams.year)) : undefined,
-      minScore: searchParams.minScore ? Number(one(searchParams.minScore)) : undefined,
-      sort: one(searchParams.sort),
+      search: one(query.q),
+      genres: many(query.genre),
+      excludeGenres: many(query.not),
+      tags: many(query.tag),
+      formats: many(query.format),
+      status: one(query.status),
+      season: one(query.season),
+      year: query.year ? Number(one(query.year)) : undefined,
+      minScore: query.minScore ? Number(one(query.minScore)) : undefined,
+      sort: one(query.sort),
       page,
       perPage: 30,
     });
@@ -57,7 +58,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: SP })
 
   const pageHref = (n: number) => {
     const p = new URLSearchParams();
-    Object.entries(searchParams).forEach(([k, v]) => {
+    Object.entries(query).forEach(([k, v]) => {
       if (k === 'page' || v === undefined) return;
       many(v).forEach((val) => p.append(k, val));
     });

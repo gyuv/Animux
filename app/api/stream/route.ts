@@ -12,6 +12,10 @@ import {
 import {
   hianimeConfigured, hianimeEpisodes, hianimeFindId, hianimeSources,
 } from '@/lib/providers/hianime';
+import {
+  libProviderOrder, libFindId, libEpisodes, libSources,
+  type ConsumetLibProvider,
+} from '@/lib/providers/consumet-lib';
 
 /**
  * Stream resolution.
@@ -257,6 +261,27 @@ async function fromHiAnime(
   return merge(payloads);
 }
 
+/**
+ * One of Consumet's in-process scrapers. Same shape as the others; the
+ * provider name is the only thing that varies, so the fallback chain is a
+ * list rather than a branch per source.
+ */
+async function fromLibProvider(
+  name: ConsumetLibProvider,
+  titles: (string | null | undefined)[],
+  episode: number,
+): Promise<StreamPayload> {
+  const animeId = await libFindId(name, titles);
+  if (!animeId) throw new ProviderError(`Could not match this title on ${name}.`);
+
+  const episodes = await libEpisodes(name, animeId);
+  const match = episodes.find((e) => e.number === episode);
+  if (!match) throw new ProviderError(`Episode ${episode} is not listed by this source.`);
+
+  const resolved = await libSources(name, match.id);
+  return toPayload(resolved, name, 'sub', 'ja');
+}
+
 /* ------------------------------------------------------------------ route */
 
 export async function GET(request: Request) {
@@ -332,6 +357,32 @@ export async function GET(request: Request) {
         });
       } catch (err) {
         failures.push(`hianime: ${describe(err)}`);
+      }
+    }
+
+    // Consumet's own scrapers, in-process, as the last tier. Each one is a
+    // different catalogue rather than a different route to the same one, so a
+    // title missing from HiAnime can still resolve here.
+    if (hianimeConfigured()) {
+      let titles: (string | null | undefined)[] = [];
+      try {
+        const { anime } = await getAnime(anilistId);
+        titles = [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)];
+      } catch {
+        /* Without titles there is nothing to search by; fall through to 404. */
+      }
+
+      if (titles.length > 0) {
+        for (const name of libProviderOrder()) {
+          try {
+            const payload = await fromLibProvider(name, titles, episode);
+            return NextResponse.json({ ...payload, source: 'hianime' }, {
+              headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': `consumet-lib:${name}` },
+            });
+          } catch (err) {
+            failures.push(`${name}: ${describe(err)}`);
+          }
+        }
       }
     }
 
