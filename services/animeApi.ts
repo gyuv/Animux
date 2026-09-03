@@ -1,31 +1,26 @@
 /**
- * Browser-side catalogue access.
+ * Browser-side catalogue client.
  *
- * This used to POST to graphql.anilist.co directly from the client and, on any
- * failure, `return { media: [] }`. That is the worst possible shape for an
- * error: "AniList has blocked us" and "no anime matched your search" arrived at
- * the UI as the same value, so the interface confidently rendered "no results"
- * during a total outage.
- *
- * Now it goes through /api/catalogue, which shares one rate limiter and one
- * cache with the server-rendered pages, and failures come back as failures.
+ * AniList must not be called directly from the browser. Keeping this small
+ * client pointed at our own API means the server-side AniList cache, error
+ * handling and rate-limit protection are shared by Home, Browse and Explore.
  */
 
 export interface AnimeQueryParams {
   search?: string;
   genres?: string[];
   excludeGenres?: string[];
-  status?: string;
-  sort?: string;
-  page?: number;
-  perPage?: number;
   year?: number;
   season?: string;
   formats?: string[];
+  status?: string;
   minScore?: number;
+  sort?: string;
+  page?: number;
+  perPage?: number;
 }
 
-export interface CatalogueResponse {
+export interface AnimeSearchResult {
   media: any[];
   pageInfo: {
     total: number;
@@ -33,54 +28,47 @@ export interface CatalogueResponse {
     lastPage: number;
     hasNextPage: boolean;
   };
-  /** Set when results are stale or from the fallback provider. */
-  notice?: string | null;
 }
 
-export class CatalogueUnavailable extends Error {
-  kind: string;
-  retryAfter: number;
+const buildQuery = (params: AnimeQueryParams) => {
+  const query = new URLSearchParams();
 
-  constructor(message: string, kind = 'unknown', retryAfter = 60) {
-    super(message);
-    this.name = 'CatalogueUnavailable';
-    this.kind = kind;
-    this.retryAfter = retryAfter;
-  }
-}
-
-export async function fetchAnimeData(
-  params: AnimeQueryParams,
-  signal?: AbortSignal,
-): Promise<CatalogueResponse> {
-  let res: Response;
-
-  try {
-    res = await fetch('/api/catalogue', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
-      signal,
-    });
-  } catch (err) {
-    // An aborted request is the caller changing its mind, not a failure.
-    if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new CatalogueUnavailable('Animux could not reach its server.', 'network');
-  }
-
-  const json = await res.json().catch(() => null);
-
-  if (!res.ok) {
-    throw new CatalogueUnavailable(
-      json?.error ?? 'The catalogue is unavailable.',
-      json?.kind ?? 'unknown',
-      Number(res.headers.get('Retry-After') ?? 60),
-    );
-  }
-
-  return {
-    media: json?.media ?? [],
-    pageInfo: json?.pageInfo ?? { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false },
-    notice: json?.meta?.notice ?? null,
+  const add = (key: string, value: string | number | undefined) => {
+    if (value !== undefined && value !== '') query.set(key, String(value));
   };
+
+  add('search', params.search?.trim());
+  add('year', params.year);
+  add('season', params.season);
+  add('status', params.status);
+  add('minScore', params.minScore);
+  add('sort', params.sort);
+  add('page', params.page ?? 1);
+  add('perPage', params.perPage ?? 20);
+
+  if (params.genres?.length) add('genres', params.genres.join(','));
+  if (params.excludeGenres?.length) add('excludeGenres', params.excludeGenres.join(','));
+  if (params.formats?.length) add('formats', params.formats.join(','));
+
+  return query.toString();
+};
+
+export async function fetchAnimeData(params: AnimeQueryParams): Promise<AnimeSearchResult> {
+  const response = await fetch(`/api/anime?${buildQuery(params)}`, {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  let json: AnimeSearchResult & { error?: string } | null = null;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error(`Catalogue returned ${response.status}.`);
+  }
+
+  if (!response.ok) {
+    throw new Error(json?.error || `Catalogue returned ${response.status}.`);
+  }
+
+  return json as AnimeSearchResult;
 }

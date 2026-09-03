@@ -3,7 +3,6 @@ import { searchAnime, AniListError } from '@/services/anilist';
 import { FilterBar } from '@/components/search/FilterBar';
 import { PosterCard } from '@/components/media/PosterCard';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { CatalogueNotice } from '@/components/ui/CatalogueNotice';
 
 export const metadata = { title: 'Browse' };
 
@@ -32,28 +31,18 @@ export default async function BrowsePage({ searchParams }: { searchParams: SP })
       perPage: 30,
     });
   } catch (error) {
-    const failure = error instanceof AniListError ? error : null;
     return (
       <>
         <FilterBar total={0} />
         <EmptyState
           title="Search is unavailable"
-          body={
-            failure?.viewerMessage ??
-            'Animux could not reach the catalogue. Nothing is wrong with your filters.'
-          }
-          action={
-            <div className="flex flex-wrap justify-center gap-3">
-              <Link href="/browse" className="key-primary">Try again</Link>
-              <Link href="/" className="key-ghost">Back to home</Link>
-            </div>
-          }
+          body={error instanceof AniListError ? error.message : 'Something went wrong reaching the catalogue.'}
         />
       </>
     );
   }
 
-  const { media, pageInfo, meta } = result;
+  const { media, pageInfo } = result;
 
   const nextHref = (n: number) => {
     const p = new URLSearchParams();
@@ -68,8 +57,6 @@ export default async function BrowsePage({ searchParams }: { searchParams: SP })
   return (
     <>
       <FilterBar total={pageInfo.total} />
-
-      {meta.notice && <CatalogueNotice message={meta.notice} />}
 
       {media.length === 0 ? (
         <EmptyState

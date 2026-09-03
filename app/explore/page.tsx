@@ -7,10 +7,11 @@ import { AdvancedSearch } from '@/components/search/AdvancedSearch';
 import { HeroBanner } from '@/components/home/HeroBanner';
 import { useTVNavigation } from '@/hooks/useTVNavigation';
 import { Sparkles, Compass } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function ExplorePage() {
   useTVNavigation();
-  const { data, loading, updateFilters } = useAnimeSearch();
+  const { data, loading, error, updateFilters } = useAnimeSearch();
 
   // Pick the first item for the Hero Banner showcase if available
   const heroAnime = data[0];
@@ -56,6 +57,13 @@ export default function ExplorePage() {
           });
         }} 
       />
+
+      {error && !loading && (
+        <EmptyState
+          title="The catalogue is temporarily unavailable"
+          body={error}
+        />
+      )}
 
       {/* Section Title */}
       <div className="flex items-center gap-2 mb-6">

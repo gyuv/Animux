@@ -61,12 +61,8 @@ export function Rail({ title, note, action, children }: Props) {
         </div>
       </header>
 
-      {/* The fades key off the same measurement the arrows use, so the shelf
-          only signals "more this way" when there actually is more. */}
-      <div className="rail-edge" data-start={edges.start} data-end={edges.end}>
-        <div ref={track} onScroll={measure} className="rail-scroll gutter-x pb-2">
-          {children}
-        </div>
+      <div ref={track} onScroll={measure} className="rail-scroll gutter-x pb-2">
+        {children}
       </div>
     </section>
   );

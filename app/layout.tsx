@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next';
 import { Zen_Kaku_Gothic_New, Inter } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/shell/AppShell';
-import { SplashGate } from '@/components/brand/SplashGate';
 
 /**
  * Zen Kaku Gothic New carries the display type. It is a Japanese gothic, which
@@ -44,10 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-device="desktop" className={`${display.variable} ${ui.variable}`}>
       <body>
-        {/* An overlay, deliberately after the shell in the tree: the app is
-            already rendered and interactive underneath while it plays. */}
         <AppShell>{children}</AppShell>
-        <SplashGate />
       </body>
     </html>
   );

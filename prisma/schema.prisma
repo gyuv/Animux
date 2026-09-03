@@ -1,43 +1,13 @@
-// Prisma schema.
-//
-// This was previously written in Prisma 7 syntax (`provider = "prisma-client"`,
-// a `datasource` with no `url`, output redirected to lib/generated/prisma) while
-// package.json pins Prisma 5. `prisma generate` could not succeed against it,
-// and it declared no models even though app/api/stream/route.ts queries
-// `prisma.episode`.
-//
-// Rewritten for the installed version, with the Episode model the stream route
-// actually selects from. Nothing here runs unless DATABASE_URL is set.
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-/// Episode-level stream metadata, used as the fallback source in
-/// app/api/stream/route.ts when the upstream provider returns nothing.
-model Episode {
-  id         String   @id
-  title      String?
-  streamUrl  String
-  drmKey     String?
-  quality    String?
-  bitrate    Int?
-  duration   Int?
-  thumbnail  String?
-
-  /// Subtitle tracks, stored as JSON: [{ lang, label, url }]
-  subtitles  Json?
-
-  animeId    String?
-  number     Int?
-
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([animeId, number])
 }
