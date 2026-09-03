@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation';
-import { getAnime, displayTitle } from '@/services/anilist';
+import { getAnime, displayTitle, AniListError } from '@/services/anilist';
 import { WatchScreen } from '@/components/player/WatchScreen';
 
-export const revalidate = 86400;
+export const revalidate = 43200;
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
   try {
-    const anime = await getAnime(Number(params.id));
+    const { anime } = await getAnime(Number(params.id));
     return { title: `Watching ${displayTitle(anime.title)}` };
   } catch {
     return { title: 'Watch' };
@@ -25,13 +25,16 @@ export default async function WatchPage({
 
   let anime;
   try {
-    anime = await getAnime(id);
-  } catch {
-    notFound();
+    ({ anime } = await getAnime(id));
+  } catch (error) {
+    if (error instanceof AniListError && error.kind === 'query') notFound();
+    throw error;
   }
 
-  const episode = Math.max(1, Number(searchParams.ep ?? 1));
-  const startAt = Math.max(0, Number(searchParams.t ?? 0));
+  if (!anime) notFound();
+
+  const episode = Math.max(1, Number(searchParams.ep ?? 1) || 1);
+  const startAt = Math.max(0, Number(searchParams.t ?? 0) || 0);
 
   return (
     <WatchScreen

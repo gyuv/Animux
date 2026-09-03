@@ -1,12 +1,24 @@
-node_modules
+# dependencies
 node_modules/
 
-/lib/generated/prisma
+# next.js build output
+/.next/
+/out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# environment
 .env
+.env.local
+.env.*.local
+
+# editor / agent scratch
 .agents/
 .claude/
 .windsurf/
 skills-lock.json
-tsconfig.tsbuildinfo
-.env
-.env
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*

@@ -33,81 +33,49 @@ or `/api/catalogue/by-ids`.
 
 ## Behaviour during an outage
 
-In order: fresh cache, live AniList, stale cache (up to a week old), then the
-Jikan fallback. A viewer only sees an error page when all four fail. Stale and
-fallback results carry a `meta.notice` string, which the UI shows as a small
+In order: fresh cache, live AniList, then stale cache (up to a week old). A
+viewer only sees an error page when all three miss — which, after the first
+successful load of a given shelf, means a cold process rather than an outage.
+Stale results carry a `meta.notice` string, which the UI renders as a small
 banner above the content rather than replacing it.
 
 ## Environment
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `ANILIST_USER_AGENT` | `Animux/2.0 (+https://animux.app; ...)` | Set this to a real contact address. Cloudflare sits in front of AniList and treats requests without a meaningful User-Agent as bot traffic |
+| `ANILIST_USER_AGENT` | `Animux/3.0 (+https://animux.app; ...)` | Set this to a real contact address. Cloudflare sits in front of AniList and treats requests without a meaningful User-Agent as bot traffic |
 | `ANILIST_RATE_PER_MIN` | `24` | Lower it if you get rate limited; do not raise it above 30 while the API is degraded |
 | `ANILIST_BURST` | `4` | Maximum simultaneous requests |
+| `ANILIST_ENDPOINT` | `https://graphql.anilist.co` | Point at a mirror, or at a fixture server when developing offline |
+| `STREAM_PROVIDER_URL` | — | Where the player resolves episodes; without it the demo streams are served |
+| `STREAM_PROVIDER_KEY` | — | Bearer token for the above, if it needs one |
+| `STREAM_SUBTITLE_HOSTS` | — | Comma-separated hosts the caption proxy may fetch from, beyond the provider's own |
 
-## Prisma
+## Caching
 
-The app builds and deploys with **no database configured**. Prisma is only used
-by one fallback branch in `app/api/stream/route.ts`; without `DATABASE_URL` that
-branch returns 404 instead of throwing.
+`lib/catalogue/cache.ts` holds successful responses in process memory with a
+per-query TTL (30 minutes for the home shelves, 15 for a text search, 12 hours
+for a title page) and keeps them usable as a fallback for a week past that.
+Identical queries issued in the same tick share one upstream request, so the
+six shelves on the home page and a burst of pagination clicks cost one call
+between them.
 
-What was wrong before, all at once:
+It is deliberately in-process rather than shared. On a single long-lived server
+that is the whole story; behind several serverless instances each keeps its own
+copy, which is more upstream traffic than a shared cache but still bounded by
+the limiter, and it needs no infrastructure. If you deploy widely enough for
+that to matter, replace the `read`/`write` pair with your store of choice —
+nothing else in the app touches it.
 
-- `prisma/schema.prisma` used Prisma 7 syntax (`provider = "prisma-client"`, a
-  `datasource` with no `url`) while `package.json` pins Prisma 5, so
-  `prisma generate` could not succeed against it.
-- The schema declared no models, yet the stream route queries `prisma.episode`.
-- `lib/prisma.ts` constructed `new PrismaClient()` at module scope. Next's
-  "Collecting page data" pass imports every route, so the *build* crashed with
-  "@prisma/client did not initialize yet".
-- `lib/prisma.ts` also imported types from `@prisma/client`, which exports
-  nothing until generated — a second build failure behind the first.
+## No database
 
-Now: the schema targets Prisma 5 and defines `Episode`; `lib/prisma.ts`
-constructs the client lazily on first property access and declares the record
-shape locally instead of importing it.
+The app has none, and needs none. An earlier version carried a half-configured
+Prisma setup whose client was constructed at module scope, which crashed the
+build during Next's "Collecting page data" pass. It has been removed along with
+the Supabase client that threw on load whenever its environment variables were
+absent.
 
-To actually use a database:
-
-```
-DATABASE_URL=postgresql://...   # set this first
-npm run db:generate             # generate the client
-npm run db:push                 # create the Episode table
-```
-
-`prisma generate` is deliberately **not** part of `npm run build`. Adding it
-reintroduces a build-time dependency on Prisma's binary downloads and on
-`DATABASE_URL` being present, which is what made the build fragile before.
-
-## Known stray files
-
-`MediaGrid.tsx` (repo root) and `pp/explore/page.tsx` (a mistyped `app/`) look
-like leftovers worth checking.
-
-`.next/` is committed to the repo. Vercel warns about this, and a stale cached
-build can shadow a real one. It is now in `.gitignore`, but git keeps tracking
-files it already knows about, so run once:
-
-```
-git rm -r --cached .next
-git commit -m "Stop tracking build output"
-```
-
-
-## Files that must be deleted, not overwritten
-
-Extracting a zip over a repo adds and overwrites files, but it cannot remove
-ones that are no longer wanted. These are stale and should be deleted from git:
-
-```
-git rm -f --ignore-unmatch prisma7.config.ts services/anilist.ts.bak
-git rm -r --cached --ignore-unmatch .next
-git commit -m "Remove stale generated files from the repo"
-```
-
-`prisma7.config.ts` is the one that matters: it imports `prisma/config`, a
-Prisma 7 API that does not exist in the pinned Prisma 5, and `tsconfig.json`
-picks up every `.ts` file in the tree. The build is defended against it by an
-entry in `tsconfig.json`'s `exclude` list, so it will not break the build if it
-stays — but there is no reason to keep it.
+Watch progress, saved titles and playback preferences live in `localStorage`
+via `store/useLibrary.ts`. To add a backend, implement its `SyncAdapter`
+(`pull()` and `push()`) and hand it to `attachSync` — that is the only seam the
+rest of the app knows about.

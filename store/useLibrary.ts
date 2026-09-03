@@ -37,6 +37,10 @@ export interface Preferences {
   autoPlayNext: boolean;
   /** Preferred spoken language when a title ships several dubs. */
   audioLang: string;
+  /** Carried across episodes so the player never starts loud. */
+  volume: number;
+  muted: boolean;
+  playbackRate: number;
 }
 
 export interface SyncAdapter {
@@ -49,6 +53,9 @@ interface LibraryState {
   saved: string[];
   preferences: Preferences;
   sync: SyncAdapter | null;
+  /** False until localStorage has been read, so nothing renders a wrong
+   *  "Resume" button on the server and then corrects itself on hydration. */
+  hydrated: boolean;
 
   recordProgress(entry: Omit<WatchProgress, 'updatedAt'>): void;
   clearProgress(animeId: string): void;
@@ -59,10 +66,23 @@ interface LibraryState {
   isSaved(animeId: string): boolean;
 
   setPreferences(next: Partial<Preferences>): void;
+  markHydrated(): void;
 
   attachSync(adapter: SyncAdapter): void;
   pullRemote(): Promise<void>;
 }
+
+export const DEFAULT_PREFERENCES: Preferences = {
+  audio: 'sub',
+  subtitleLang: 'en',
+  subtitleSize: 'medium',
+  autoSkipIntro: true,
+  autoPlayNext: true,
+  audioLang: 'ja',
+  volume: 1,
+  muted: false,
+  playbackRate: 1,
+};
 
 /** Below this, the viewer effectively hasn't started; above, they've finished. */
 const STARTED = 0.02;
@@ -77,14 +97,8 @@ export const useLibrary = create<LibraryState>()(
       progress: [],
       saved: [],
       sync: null,
-      preferences: {
-        audio: 'sub',
-        subtitleLang: 'en',
-        subtitleSize: 'medium',
-        autoSkipIntro: true,
-        autoPlayNext: true,
-        audioLang: 'ja',
-      },
+      hydrated: false,
+      preferences: { ...DEFAULT_PREFERENCES },
 
       recordProgress(entry) {
         const ratio = entry.duration > 0 ? entry.position / entry.duration : 0;
@@ -149,6 +163,10 @@ export const useLibrary = create<LibraryState>()(
         set({ preferences: { ...get().preferences, ...next } });
       },
 
+      markHydrated() {
+        set({ hydrated: true });
+      },
+
       attachSync(adapter) {
         set({ sync: adapter });
       },
@@ -175,9 +193,26 @@ export const useLibrary = create<LibraryState>()(
     }),
     {
       name: 'animux.library',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ progress: s.progress, saved: s.saved, preferences: s.preferences }),
+      // A stored v2 payload is missing the preferences added since; merging
+      // over the defaults means an upgrade never lands a viewer on
+      // `preferences.volume === undefined` and a muted player.
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<LibraryState> | undefined;
+        if (!state) return persisted as LibraryState;
+        if (version < 3) {
+          return {
+            ...state,
+            preferences: { ...DEFAULT_PREFERENCES, ...(state.preferences ?? {}) },
+          } as LibraryState;
+        }
+        return state as LibraryState;
+      },
+      onRehydrateStorage: () => (state) => {
+        state?.markHydrated();
+      },
     },
   ),
 );

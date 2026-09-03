@@ -4,20 +4,22 @@ module.exports = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './hooks/**/*.{js,ts,jsx,tsx}',
-    './*.{js,ts,jsx,tsx}',
   ],
   theme: {
     extend: {
       colors: {
         ink: {
+          950: '#08060D',
           900: '#0E0B16',
           800: '#16121F',
           700: '#211A2E',
           600: '#2E2540',
+          500: '#3D3154',
         },
         haze: '#B6ADC8',
         paper: '#F2EDF7',
         signal: '#FF4D6D',
+        gold: '#F5C542',
         // Resolved at runtime from the artwork of whatever is on screen.
         chroma: 'rgb(var(--chroma) / <alpha-value>)',
       },
@@ -34,6 +36,7 @@ module.exports = {
         title: ['calc(1.375rem * var(--density))', { lineHeight: '1.25', letterSpacing: '-0.01em' }],
         hero: ['calc(2.75rem * var(--density))', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
         mega: ['calc(4rem * var(--density))', { lineHeight: '0.95', letterSpacing: '-0.04em' }],
+        colossal: ['calc(6.5rem * var(--density))', { lineHeight: '0.82', letterSpacing: '-0.05em' }],
       },
       borderRadius: {
         // Deliberately unequal: artwork is soft, controls are crisp.
@@ -44,9 +47,11 @@ module.exports = {
       spacing: {
         gutter: 'var(--gutter)',
         rail: 'var(--rail-w)',
+        topbar: 'var(--topbar-h)',
       },
       transitionTimingFunction: {
         physical: 'cubic-bezier(0.22, 1, 0.36, 1)',
+        snap: 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
       keyframes: {
         pulseSignal: {
@@ -57,10 +62,30 @@ module.exports = {
           from: { transform: 'translateX(-120%)' },
           to: { transform: 'translateX(220%)' },
         },
+        rise: {
+          from: { opacity: '0', transform: 'translateY(14px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        fade: {
+          from: { opacity: '0' },
+          to: { opacity: '1' },
+        },
+        scaleIn: {
+          from: { opacity: '0', transform: 'scale(0.96)' },
+          to: { opacity: '1', transform: 'scale(1)' },
+        },
+        drift: {
+          '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
+          '50%': { transform: 'translate3d(2%, -2%, 0) scale(1.06)' },
+        },
       },
       animation: {
         'pulse-signal': 'pulseSignal 2.4s ease-in-out infinite',
         sheen: 'sheen 1.8s var(--ease-physical, ease) infinite',
+        rise: 'rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+        fade: 'fade 0.4s ease both',
+        'scale-in': 'scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
+        drift: 'drift 24s ease-in-out infinite',
       },
     },
   },

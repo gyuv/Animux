@@ -13,7 +13,7 @@ import { remaining, timecode } from '@/lib/format';
  * left off" instead of "another thing to start", and so the shelf is visually
  * distinct from every other row on the page without needing a label to say so.
  */
-export function ContinueCard({ entry }: { entry: WatchProgress }) {
+export function ContinueCard({ entry, fill }: { entry: WatchProgress; fill?: boolean }) {
   const clearProgress = useLibrary((s) => s.clearProgress);
   const chroma = toChromaVar(entry.color);
   const pct = entry.duration > 0 ? Math.min(100, (entry.position / entry.duration) * 100) : 0;
@@ -21,7 +21,7 @@ export function ContinueCard({ entry }: { entry: WatchProgress }) {
   return (
     <div
       style={{ ['--chroma' as string]: chroma }}
-      className="group relative w-[248px] shrink-0 sm:w-[288px]"
+      className={`group relative ${fill ? 'w-full' : 'w-[248px] shrink-0 sm:w-[288px]'}`}
     >
       <Link
         href={`/watch/${entry.animeId}?ep=${entry.episode}&t=${Math.floor(entry.position)}`}
@@ -35,7 +35,7 @@ export function ContinueCard({ entry }: { entry: WatchProgress }) {
               src={entry.cover}
               alt=""
               fill
-              sizes="288px"
+              sizes={fill ? '(max-width: 640px) 90vw, 300px' : '288px'}
               className="object-cover opacity-85 transition-opacity duration-300
                          group-hover:opacity-100"
             />

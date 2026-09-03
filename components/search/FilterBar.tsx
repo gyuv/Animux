@@ -30,7 +30,9 @@ export function FilterBar({ total }: { total: number }) {
   const exclude = params.getAll('not');
   const formats = params.getAll('format');
   const activeCount = genres.length + exclude.length + formats.length +
-    (params.get('status') ? 1 : 0) + (params.get('year') ? 1 : 0) + (params.get('season') ? 1 : 0);
+    (params.get('status') ? 1 : 0) + (params.get('year') ? 1 : 0) +
+    (params.get('season') ? 1 : 0) + (params.get('minScore') ? 1 : 0) +
+    (params.get('tag') ? 1 : 0);
 
   const commit = (next: URLSearchParams) => {
     next.delete('page');
@@ -75,7 +77,7 @@ export function FilterBar({ total }: { total: number }) {
   };
 
   return (
-    <div className="gutter-x sticky top-0 z-30 border-b border-ink-700/60 bg-ink-900/85 py-4 backdrop-blur-xl">
+    <div className="gutter-x sticky top-topbar z-20 border-b border-ink-700/60 bg-ink-900/85 py-4 backdrop-blur-xl">
       <div className="flex flex-wrap items-center gap-2.5">
         <label className="flex min-w-[220px] flex-1 items-center gap-2.5 rounded-key border
                           border-ink-700 bg-ink-800 px-3.5 py-2.5 focus-within:border-chroma">
@@ -123,6 +125,42 @@ export function FilterBar({ total }: { total: number }) {
           ))}
         </select>
       </div>
+
+      {!open && activeCount > 0 && (
+        <ul className="mt-3 flex flex-wrap items-center gap-2" aria-label="Active filters">
+          {[
+            ...genres.map((v) => ['genre', v, v] as const),
+            ...exclude.map((v) => ['not', v, `− ${v}`] as const),
+            ...formats.map((v) => ['format', v, v] as const),
+            ...(params.get('status') ? [['status', params.get('status')!, params.get('status')!] as const] : []),
+            ...(params.get('season') ? [['season', params.get('season')!, params.get('season')!] as const] : []),
+            ...(params.get('year') ? [['year', params.get('year')!, params.get('year')!] as const] : []),
+          ].map(([key, value, label]) => (
+            <li key={`${key}:${value}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new URLSearchParams(params.toString());
+                  const rest = next.getAll(key).filter((v) => v !== value);
+                  next.delete(key);
+                  rest.forEach((v) => next.append(key, v));
+                  commit(next);
+                }}
+                className="chip capitalize"
+                data-on="true"
+              >
+                {String(label).toLowerCase()}
+                <X size={12} aria-hidden />
+              </button>
+            </li>
+          ))}
+          <li>
+            <button type="button" onClick={clearAll} className="text-micro text-haze hover:text-paper">
+              Clear all
+            </button>
+          </li>
+        </ul>
+      )}
 
       {open && (
         <div className="mt-4 space-y-5 rounded-panel border border-ink-700 bg-ink-800/60 p-5">
@@ -185,6 +223,18 @@ export function FilterBar({ total }: { total: number }) {
                 onClick={() => setOne('season', params.get('season') === s ? null : s)}
               >
                 {s.charAt(0) + s.slice(1).toLowerCase()}
+              </Chip>
+            ))}
+          </Group>
+
+          <Group label="Minimum score" hint="Out of 100, as AniList scores it">
+            {[0, 60, 70, 75, 80, 85].map((score) => (
+              <Chip
+                key={score}
+                state={(Number(params.get('minScore') ?? 0)) === score ? 'in' : 'off'}
+                onClick={() => setOne('minScore', score ? String(score) : null)}
+              >
+                {score === 0 ? 'Any' : `${score}+`}
               </Chip>
             ))}
           </Group>

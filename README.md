@@ -1,43 +1,53 @@
 # Animux
 
-Anime streaming front end. Next.js 14 App Router, TypeScript, Tailwind.
+An anime front end: browse a catalogue of ~20,000 titles, read everything
+AniList knows about any one of them, and watch episodes with the audio and
+subtitle track you actually want. Next.js 14 App Router, TypeScript, Tailwind.
+
+```bash
+npm install
+npm run dev
+```
+
+Metadata comes from AniList's public GraphQL API — no key needed. Video does
+not: see [Streaming sources](#streaming-sources).
 
 ---
 
-## Why the old build looked broken
+## What is here
 
-There was no `postcss.config.js`.
+**Home.** A five-slide hero that advances on a timer and stops the moment you
+touch it, a live "on air in the next 48 hours" strip counting down, a numbered
+top-ten rail, this season, next season, films, and eight doors marked by mood.
 
-Without it Next.js never runs Tailwind, so `@tailwind base; @tailwind
-components; @tailwind utilities;` shipped to the browser as literal text. The
-compiled stylesheet in the old `.next` folder was **215 bytes** and still
-contained those three lines unprocessed. Every utility class in the codebase —
-every gradient, radius, grid and spacing value — did nothing. What rendered was
-unstyled HTML on a dark background.
+**Title pages** are the centre of the app. Six tabbed sections, all rendered on
+the server in one request:
 
-The stylesheet now compiles to about 27 KB of real CSS. That one file was the
-whole of the "it looks bad" problem.
+| Section | What is in it |
+| --- | --- |
+| Overview | Synopsis, full production record, crowd-ranked tags, and legal streaming links |
+| Episodes | Real episode titles and artwork where AniList has them, card or list |
+| Characters | Every credited role, each card turning over to its voice actor |
+| Staff | Director, composer, character designer, credited by job |
+| Reception | Score histogram, watch-status split, rankings, four headline figures |
+| Related | Prequels, sequels, side stories and the manga it came from |
 
----
+**Search** is Cmd/Ctrl-K from anywhere, debounced, with the highlighted result
+tinting the panel around it. `/browse` holds the same search in the URL with
+genre include/exclude, format, status, season, year and score filters.
 
-## Other bugs found and fixed
+**Schedule** groups the coming week's broadcasts into *your* days, in *your*
+clock, counting down live.
 
-| Problem | Effect | Fix |
-| --- | --- | --- |
-| No `postcss.config.js` | Tailwind never ran | Added |
-| `description` missing from the AniList query, but read in the UI | Hero synopsis was always `undefined` and fell back to placeholder copy | Field added to the query |
-| `pp/explore/page.tsx` | Typo'd folder outside `app/`; dead route | Removed |
-| `MediaGrid.tsx` at repo root | Outside Tailwind's `content` globs, so its classes never compiled even after Tailwind worked | Folded into `components/media/` |
-| `app/page.tsx` and `app/explore/page.tsx` near-identical | Two homepages | One home, one browse |
-| `animate-spin-slow` used in JSX | Never defined in the config; silently did nothing | Removed; real keyframes defined |
-| Filters in hover-only dropdowns | Unopenable on touch and on a TV remote | Toggle chips in a panel |
-| `useTVNavigation` jumped `±4` in a flat DOM list | Broke on any grid that was not four columns; focused offscreen elements | Geometric spatial navigation |
-| Supabase client constructed at module scope with empty env strings | Threw on load when unconfigured | Local-first store, optional sync adapter |
-| Progress saved on `Math.floor(t) % 5 === 0` | True for every `timeupdate` in that second — roughly 15 writes per save | Throttled to one write per 5 s wall clock |
-| `isMuted` state never applied to the video element | Mute button did nothing | Bound via effect |
-| No detail page, no watch route | Nothing ever wrote progress, so Continue Watching stayed empty | Both routes added |
-| `target: es5` in tsconfig | Oversized, slower output | `ES2020` |
-| `.next/` committed | 60+ build artifacts in the repo | Gitignored |
+**The player** does what a player should: HLS with quality selection, sub/dub
+switching mid-episode without losing your place, subtitles with three sizes,
+playback speed, picture-in-picture, chapter-aware skip-intro, buffered-range
+display on the scrub bar, resume-from-where-you-stopped, autoplay-next with a
+countdown you can cancel, double-tap-to-seek on touch, and a full keyboard map
+behind `?`.
+
+**Library** keeps what you started, what you saved and what you finished,
+locally, with a `SyncAdapter` interface ready for a backend.
 
 ---
 
@@ -45,14 +55,22 @@ whole of the "it looks bad" problem.
 
 **Chroma.** AniList returns a dominant colour for every title's artwork
 (`coverImage.color`), which the old build fetched and threw away. It now drives
-the interface: focus rings, hero washes, progress bars and card glows all adopt
-the colour of whatever is on screen. `lib/chroma.ts` lifts colours that are too
-dark to read against the background, preserving hue, so the ring stays legible
-on a title whose key art is nearly black.
+the interface: focus rings, hero washes, progress bars, card glows and the
+score histogram all adopt the colour of whatever is on screen.
+`lib/chroma.ts` lifts colours that are too dark to read against the background,
+preserving hue, so the ring stays legible on a title whose key art is nearly
+black.
+
+The one place colour is *not* derived from artwork is the watch-status
+breakdown, where five categories need five stable identities. Those come from a
+fixed categorical palette, validated for colour-vision deficiency against the
+panel background — colour follows the entity, never its size, so a title most
+people dropped is never painted in the colour "Completed" wears elsewhere.
 
 **Type.** Zen Kaku Gothic New for display, Inter for UI. The Japanese gothic is
 a functional choice as much as a tonal one — the interface shows native titles
-beside romaji, and a Latin-only display face falls apart the moment it hits kana.
+beside romaji, and a Latin-only display face falls apart the moment it hits
+kana.
 
 **Base palette.** Aubergine-black (`#0E0B16`) through to a violet-cast off-white
 (`#F2EDF7`), with `#FF4D6D` reserved strictly for airing status. Everything else
@@ -78,17 +96,43 @@ Type sizes, gutters and nav width are all `calc()` against `--density`, so the
 same components serve all three without a parallel TV stylesheet.
 
 **Ready for the app port:** bottom tabs match the Android pattern, safe-area
-insets are respected on every fixed surface, `manifest.webmanifest` is wired for
-install-to-homescreen, viewport is locked so a double-tap seeks instead of
-zooming, and all search state lives in the URL so a native shell can deep link
-into any filtered view.
+insets are respected on every fixed surface, `manifest.webmanifest` and its
+icons are wired for install-to-homescreen, the viewport is locked so a
+double-tap seeks instead of zooming, and all search state lives in the URL so a
+native shell can deep link into any filtered view.
+
+---
+
+## Talking to AniList without getting banned
+
+AniList is a free API. It documents 90 requests a minute, has been running
+capped at 30, and has a separate burst limiter on top; going over earns a
+timeout, and doing it repeatedly from one IP earns a 403 block. Three things
+keep Animux under that ceiling:
+
+- **One gate.** Every outbound call passes the token bucket in
+  `lib/catalogue/limiter.ts`. Requests queue rather than burst, and a
+  `Retry-After` — or a 403 — puts the whole process into a cooldown.
+- **One request per page.** The home page asks for its six shelves in a single
+  aliased query instead of six round trips.
+- **Nothing from the browser.** Client components go through `/api/catalogue`,
+  so a viewer typing in the search box spends *our* shared, cached budget
+  rather than their own IP's.
+
+When upstream does refuse, a shelf that has ever loaded never goes blank:
+successful responses are kept for a week and served stale behind a notice
+saying how old they are. `/api/catalogue/health` answers the only question that
+matters during an outage — is AniList down for everyone, or is this deployment's
+IP blocked? Those have completely different fixes.
+
+`ANILIST_ENDPOINT` overrides the endpoint, for a mirror or a fixture server.
 
 ---
 
 ## Streaming sources
 
-`app/api/stream/route.ts` defines the contract but does **not** source video.
-Point it at a backend you are licensed to serve from:
+`app/api/stream/route.ts` defines the contract the player consumes. It does
+**not** source video. Point it at a backend you are licensed to serve from:
 
 ```
 STREAM_PROVIDER_URL=https://your-backend.example/resolve
@@ -112,37 +156,43 @@ Expected response:
 ```
 
 Return one `sources` entry per audio track and the language picker populates
-itself. With no provider set the route serves a public test stream, so the
-player, language switching and resume logic are all exercisable in development.
+itself. With no provider set the route serves public test streams plus a
+generated caption track, so playback, language switching, subtitles, chapter
+skipping and resume are all exercisable in development.
+
+Caption files are proxied through `/api/stream/captions` rather than linked
+directly. A `<track>` element is subject to CORS and provider CDNs routinely
+lack the headers, and the failure mode is the worst kind — no error, just
+subtitles that never appear. The proxy only fetches hosts on an allowlist
+(`STREAM_SUBTITLE_HOSTS`, comma separated, plus the provider's own host); an
+open `?src=` would be a server-side request forgery hole.
 
 ---
-
-## Running it
-
-```bash
-npm install
-npm run dev
-```
-
-Metadata comes from AniList's public GraphQL API — no key needed.
 
 ## Structure
 
 ```
 app/
-  page.tsx              home: hero, continue watching, shelves
+  page.tsx              home: hero carousel, continue watching, shelves
   browse/               advanced search, state held in the URL
-  title/[id]/           details, facts, episode list
+  schedule/             the week's broadcasts, in local days
+  title/[id]/           tabbed detail: overview, episodes, cast, stats, related
   watch/[id]/           full-screen player
-  api/stream/           source contract
+  library/ settings/    local library and playback defaults
+  api/catalogue/        proxy, cache and health check for AniList
+  api/stream/           source contract and caption proxy
 components/
-  shell/AppShell        device-shaped navigation
-  media/                posters, rails, hero, episodes
-  player/               player, language menu
-  search/FilterBar      filters
+  shell/AppShell        device-shaped navigation and top bar
+  search/               command palette, filter bar
+  home/                 hero carousel, airing strip
+  media/                posters, rails, episodes, resume cards
+  title/                every section of the detail page
+  player/               player, menus, autoplay, shortcuts
+  schedule/             the weekly board
 hooks/                  useDevice, useChroma, useSpatialNav
 lib/chroma.ts           artwork colour extraction and legibility
-services/anilist.ts     metadata
+lib/catalogue/          rate limiter and stale-while-revalidate cache
+services/anilist.ts     every query the app makes
 store/useLibrary.ts     progress, saved titles, preferences
 ```
 
@@ -150,6 +200,5 @@ store/useLibrary.ts     progress, saved titles, preferences
 
 - Sign-in and cross-device sync — `store/useLibrary.ts` takes a `SyncAdapter`
   with `pull()` and `push()`; wire your backend to that interface.
-- `public/icon-192.png`, `icon-512.png`, `icon-mask.png` for the manifest.
-- Autoplay-next on episode end (the preference is stored and read; the handler
-  is not wired).
+- Outro chapters are read from the provider contract but only intros are
+  auto-skipped; the outro currently just brings the next-episode card forward.

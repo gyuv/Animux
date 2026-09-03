@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAnime, type SearchParams } from '@/services/anilist';
+import { searchAnime, AniListError, type SearchParams } from '@/services/anilist';
+
+/** GET-shaped mirror of /api/catalogue, for links and native shells that
+ *  cannot easily POST. Same gate, same cache, same failure contract. */
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,18 +40,26 @@ export async function GET(request: NextRequest) {
     const result = await searchAnime(params);
     return NextResponse.json(result, {
       headers: {
-        // Let the browser reuse a successful catalogue response briefly while
-        // Next/AniList handles the longer server-side cache.
         'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
       },
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Catalogue request failed.';
-    const status = /rate limit|throttl/i.test(message) ? 429 : 502;
+  } catch (err) {
+    const error =
+      err instanceof AniListError
+        ? err
+        : new AniListError('server', 'Catalogue request failed.', String(err));
 
     return NextResponse.json(
-      { error: message, media: [], pageInfo: { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false } },
-      { status, headers: { 'Cache-Control': 'no-store' } },
+      {
+        error: error.viewerMessage,
+        kind: error.kind,
+        media: [],
+        pageInfo: { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false },
+      },
+      {
+        status: error.kind === 'rate' ? 429 : 502,
+        headers: { 'Cache-Control': 'no-store', 'Retry-After': String(error.retryAfter ?? 60) },
+      },
     );
   }
 }

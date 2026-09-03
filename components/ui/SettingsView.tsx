@@ -32,8 +32,12 @@ export function SettingsView() {
   const set = (patch: Partial<Preferences>) => setPreferences(patch);
 
   return (
-    <div className="gutter-x max-w-[62ch] py-8">
-      <h1 className="font-display text-hero font-black text-paper">Settings</h1>
+    <div className="gutter-x max-w-[62ch] pb-8 pt-topbar">
+      <h1 className="mt-8 font-display text-hero font-black text-paper">Settings</h1>
+      <p className="mt-2 text-body text-haze">
+        These are the defaults the player opens with. Anything changed inside the player
+        while watching is written back here.
+      </p>
 
       <Section title="Audio" note="What plays first when a release offers more than one track.">
         <Choice
@@ -75,6 +79,12 @@ export function SettingsView() {
       </Section>
 
       <Section title="Playback">
+        <Choice
+          label="Default speed"
+          value={String(preferences.playbackRate)}
+          onChange={(v) => set({ playbackRate: Number(v) })}
+          options={[0.75, 1, 1.25, 1.5, 2].map((r) => ({ value: String(r), label: `${r}×` }))}
+        />
         <Toggle
           label="Skip openings automatically"
           checked={preferences.autoSkipIntro}
@@ -85,14 +95,53 @@ export function SettingsView() {
           checked={preferences.autoPlayNext}
           onChange={(v) => set({ autoPlayNext: v })}
         />
+        <Toggle
+          label="Start muted"
+          checked={preferences.muted}
+          onChange={(v) => set({ muted: v })}
+        />
       </Section>
 
       <Section title="On this device">
         <p className="text-meta text-haze">
           {progress.length} episode{progress.length === 1 ? '' : 's'} in progress,{' '}
           {saved.length} title{saved.length === 1 ? '' : 's'} saved. Everything is stored
-          on this device until you sign in.
+          on this device until sync is wired up.
         </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (!confirm('Clear all watch history and saved titles on this device?')) return;
+            useLibrary.setState({ progress: [], saved: [] });
+          }}
+          className="key-ghost border-signal/40 text-signal hover:border-signal"
+        >
+          Clear everything on this device
+        </button>
+      </Section>
+
+      <Section
+        title="Keyboard"
+        note="The player answers to these while anything other than a text field has focus."
+      >
+        <dl className="grid gap-y-2 [grid-template-columns:auto_1fr]">
+          {[
+            ['Space', 'Play or pause'],
+            ['← →', 'Back or forward ten seconds'],
+            ['F', 'Full screen'],
+            ['C', 'Audio, subtitles and quality'],
+            ['?', 'The full list, in the player'],
+          ].map(([keys, label]) => (
+            <div key={keys} className="col-span-2 flex items-center justify-between gap-4">
+              <dt>
+                <kbd className="rounded border border-ink-600 bg-ink-800 px-2 py-1 font-sans text-micro text-paper">
+                  {keys}
+                </kbd>
+              </dt>
+              <dd className="text-meta text-haze">{label}</dd>
+            </div>
+          ))}
+        </dl>
       </Section>
     </div>
   );

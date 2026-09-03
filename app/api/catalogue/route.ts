@@ -37,7 +37,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (err) {
-    const error = err instanceof AniListError ? err : new AniListError(String(err));
+    const error =
+      err instanceof AniListError
+        ? err
+        : new AniListError('server', 'Catalogue request failed.', String(err));
 
     // Upstream refusing us is not the client's fault, so this is a 503 with a
     // Retry-After the browser can actually act on — never a bare 403 passthrough.
