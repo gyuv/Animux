@@ -10,7 +10,7 @@ export const revalidate = 3600;
 
 function currentSeason() {
   const m = new Date().getMonth();
-  const season = m < 2 ? 'WINTER' : m < 5 ? 'SPRING' : m < 8 ? 'SUMMER' : 'FALL';
+  const season = m < 3 ? 'WINTER' : m < 6 ? 'SPRING' : m < 9 ? 'SUMMER' : 'FALL';
   return { season, year: new Date().getFullYear() };
 }
 
@@ -19,14 +19,12 @@ export default async function HomePage() {
 
   let shelves;
   try {
-    // Keep the initial AniList burst small. The server-side fetch cache still
-    // makes each shelf reusable, while sequential requests are much less
-    // likely to trip AniList's short-window rate limiter.
-    const trending = await searchAnime({ sort: 'TRENDING_DESC', perPage: 20 });
-    const airing = await searchAnime({ season, year, status: 'RELEASING', sort: 'POPULARITY_DESC', perPage: 20 });
-    const top = await searchAnime({ sort: 'SCORE_DESC', perPage: 20, minScore: 80 });
-    const calm = await searchAnime({ genres: ['Slice of Life'], sort: 'SCORE_DESC', perPage: 20 });
-    shelves = [trending, airing, top, calm];
+    shelves = await Promise.all([
+      searchAnime({ sort: 'TRENDING_DESC', perPage: 20 }),
+      searchAnime({ season, year, status: 'RELEASING', sort: 'POPULARITY_DESC', perPage: 20 }),
+      searchAnime({ sort: 'SCORE_DESC', perPage: 20, minScore: 80 }),
+      searchAnime({ genres: ['Slice of Life'], sort: 'SCORE_DESC', perPage: 20 }),
+    ]);
   } catch (error) {
     return (
       <EmptyState

@@ -32,7 +32,6 @@ export function Player({
   const shell = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef(0);
-  const positionRef = useRef(0); // ✅ tracks playback position without re-triggering effects
 
   const { preferences, setPreferences, recordProgress } = useLibrary();
 
@@ -55,26 +54,25 @@ export function Player({
   useEffect(() => {
     let live = true;
     setPayload(null);
-    setSource(null);
     setError(null);
     setBuffering(true);
-    positionRef.current = startAt; // reset resume point for the new episode
 
-    fetch(`/api/stream?animeId={animeId}&episodeId={episode}`)
+    fetch(`/api/stream?id=${animeId}&ep=${episode}`)
       .then(async (r) => {
         const body = await r.json();
         if (!r.ok) throw new Error(body.error ?? 'That episode would not load.');
-        return body.data as StreamPayload;
+        return body as StreamPayload;
       })
       .then((data) => {
         if (!live) return;
         setPayload(data);
-        const sources = data.sources ?? [];
+        // Honour the viewer's stored language choice, then their sub/dub
+        // preference, then whatever the provider listed first.
         const pick =
-          sources.find((s) => s.kind === preferences.audio && s.language === preferences.audioLang) ??
-          sources.find((s) => s.kind === preferences.audio) ??
-          sources[0];
-        setSource(pick ?? null);
+          data.sources.find((s) => s.kind === preferences.audio && s.audioLang === preferences.audioLang) ??
+          data.sources.find((s) => s.kind === preferences.audio) ??
+          data.sources[0];
+        setSource(pick);
       })
       .catch((e) => live && setError(e.message));
 
@@ -91,10 +89,9 @@ export function Player({
     hls.current?.destroy();
     hls.current = null;
 
-    // ✅ read the resume point ONCE at attach-time via ref
-    const resumeAt = positionRef.current > 5 ? positionRef.current : startAt;
+    const resumeAt = position > 5 ? position : startAt;
 
-    if (source.type === 'ls' && Hls.isSupported()) {
+    if (source.type === 'hls' && Hls.isSupported()) {
       const instance = new Hls({ enableWorker: true, lowLatencyMode: false });
       instance.loadSource(source.url);
       instance.attachMedia(el);
@@ -109,23 +106,26 @@ export function Player({
       });
       hls.current = instance;
     } else {
+      // Safari and iOS play HLS natively; mp4 needs nothing special.
       el.src = source.url;
       const seek = () => { if (resumeAt > 0) el.currentTime = resumeAt; };
       el.addEventListener('loadedmetadata', seek, { once: true });
     }
 
     return () => { hls.current?.destroy(); hls.current = null; };
-    // ✅ only re-attach when the source actually changes — position removed
-  }, [source, startAt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source]);
 
   /* ------------------------------------------------------------- progress */
 
   const onTime = () => {
     const el = video.current;
     if (!el) return;
-    positionRef.current = el.currentTime; // ✅ keep ref in sync
     setPosition(el.currentTime);
 
+    // Write at most once every five seconds of wall clock. The previous build
+    // tested `Math.floor(currentTime) % 5 === 0`, which is true for every one
+    // of the ~15 timeupdate events inside that second.
     const now = Date.now();
     if (now - lastSaved.current > 5000 && el.duration > 0) {
       lastSaved.current = now;
@@ -152,12 +152,12 @@ export function Player({
     setChrome(true);
   }, []);
 
-  const seekTo = useCallback((value: number) => {
+  const seekTo = (value: number) => {
     const el = video.current;
     if (!el) return;
     el.currentTime = value;
     setPosition(value);
-  }, []);
+  };
 
   const toggleFullscreen = useCallback(async () => {
     if (!shell.current) return;
@@ -182,8 +182,6 @@ export function Player({
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
-      // ✅ respect sliders that handle their own arrow keys
-      if (target.closest('[data-owns-arrows]')) return;
 
       const map: Record<string, () => void> = {
         ' ': toggle,
@@ -225,7 +223,8 @@ export function Player({
 
   useEffect(() => {
     if (inIntro && preferences.autoSkipIntro && intro) seekTo(intro[1]);
-  }, [inIntro, preferences.autoSkipIntro, intro, seekTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inIntro, preferences.autoSkipIntro]);
 
   const hasNext = totalEpisodes ? episode < totalEpisodes : true;
 
@@ -267,7 +266,7 @@ export function Player({
         onCanPlay={() => setBuffering(false)}
         style={{ ['--cue-scale' as string]: SUB_SIZE[preferences.subtitleSize] }}
       >
-        {(payload?.subtitles || []).map((s) => (
+        {payload?.subtitles.map((s) => (
           <track
             key={s.lang}
             kind="subtitles"
@@ -285,6 +284,7 @@ export function Player({
         </div>
       )}
 
+      {/* Skip intro sits above the controls so it never fights the seek bar. */}
       {inIntro && !preferences.autoSkipIntro && intro && (
         <button
           onClick={() => seekTo(intro[1])}
@@ -295,8 +295,8 @@ export function Player({
       )}
 
       <div
-        className={`absolute inset-0 z-10 flex flex-col justify
-                    bg-to-b from-black/70 via-transparent to-black/85
+        className={`absolute inset-0 z-10 flex flex-col justify-between
+                    bg-gradient-to-b from-black/70 via-transparent to-black/85
                     transition-opacity duration-300
                     ${chrome || !playing ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
       >
@@ -312,7 +312,7 @@ export function Player({
             <h1 className="truncate font-display text-title font-bold text-paper">{title}</h1>
             <p className="text-meta text-haze">
               Episode {episode}{totalEpisodes ? ` of ${totalEpisodes}` : ''}
-              {source ? ` — ${source.label ?? 'Auto'}` : ''}
+              {source ? ` — ${source.label}` : ''}
             </p>
           </div>
         </header>
@@ -347,15 +347,15 @@ export function Player({
             </span>
 
             <div className="ml-auto flex items-center gap-2">
-              {payload?.sources?.length ? (
+              {payload && payload.sources.length > 0 && (
                 <IconButton label="Audio and subtitles" onClick={() => setMenu((v) => !v)} pressed={menu}>
-                  {(payload.subtitles?.length ?? 0) > 0 ? <Subtitles size={20} aria-hidden /> : <Settings size={20} aria-hidden />}
+                  {payload.subtitles.length > 0 ? <Subtitles size={20} aria-hidden /> : <Settings size={20} aria-hidden />}
                 </IconButton>
-              ) : null}
+              )}
 
               {hasNext && (
                 <Link
-                  href={`/watch/animeId?ep={animeId}?ep=animeId?ep={episode + 1}`}
+                  href={`/watch/${animeId}?ep=${episode + 1}`}
                   className="key-ghost border-paper/20 bg-black/50 py-2"
                 >
                   <SkipForward size={16} aria-hidden />
@@ -400,7 +400,6 @@ export function Player({
 function IconButton({
   label, onClick, pressed, children,
 }: { label: string; onClick: () => void; pressed?: boolean; children: React.ReactNode }) {
-
   return (
     <button
       type="button"

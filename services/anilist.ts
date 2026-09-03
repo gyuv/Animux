@@ -120,75 +120,31 @@ const DETAIL_QUERY = `
 
 export class AniListError extends Error {}
 
-// Prevent a burst of identical requests when several shelves/components render
-// together. This is intentionally process-local; Next's fetch cache remains the
-// durable cache layer across requests/deployments.
-const inFlight = new Map<string, Promise<unknown>>();
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function gql<T>(query: string, variables: Record<string, unknown>, revalidate = 3600): Promise<T> {
-  const key = JSON.stringify([query, variables]);
-  const existing = inFlight.get(key);
-  if (existing) return existing as Promise<T>;
-
-  const request = (async () => {
-    let res: Response;
-    try {
-      res = await fetch(ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query, variables }),
-        // Explicit caching is important here: catalogue data changes much less
-        // frequently than the UI renders it.
-        next: { revalidate },
-      });
-    } catch {
-      throw new AniListError('Could not reach the catalogue. Check your connection.');
-    }
-
-    if (res.status === 429) {
-      const retryAfter = Number(res.headers.get('retry-after'));
-      // AniList normally supplies Retry-After. Cap the wait so a broken header
-      // can never leave a server request hanging indefinitely.
-      const waitSeconds = Number.isFinite(retryAfter) && retryAfter > 0
-        ? Math.min(retryAfter, 15)
-        : 3;
-      await sleep(waitSeconds * 1000);
-
-      try {
-        res = await fetch(ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ query, variables }),
-          next: { revalidate },
-        });
-      } catch {
-        throw new AniListError('Could not reach the catalogue. Check your connection.');
-      }
-
-      if (res.status === 429) {
-        throw new AniListError('The catalogue is rate limiting us. Try again in a moment.');
-      }
-    }
-
-    if (!res.ok) {
-      throw new AniListError(`The catalogue returned ${res.status}.`);
-    }
-
-    const json = await res.json();
-    if (json.errors?.length) {
-      throw new AniListError(json.errors[0]?.message ?? 'The catalogue rejected that request.');
-    }
-    return json.data as T;
-  })();
-
-  inFlight.set(key, request);
+  let res: Response;
   try {
-    return await request as T;
-  } finally {
-    inFlight.delete(key);
+    res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, variables }),
+      next: { revalidate },
+    });
+  } catch {
+    throw new AniListError('Could not reach the catalogue. Check your connection.');
   }
+
+  if (res.status === 429) {
+    throw new AniListError('The catalogue is rate limiting us. Try again in a moment.');
+  }
+  if (!res.ok) {
+    throw new AniListError(`The catalogue returned ${res.status}.`);
+  }
+
+  const json = await res.json();
+  if (json.errors?.length) {
+    throw new AniListError(json.errors[0]?.message ?? 'The catalogue rejected that request.');
+  }
+  return json.data as T;
 }
 
 export async function searchAnime(
