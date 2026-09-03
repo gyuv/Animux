@@ -41,17 +41,19 @@ export async function POST(request: Request) {
 
     // Upstream refusing us is not the client's fault, so this is a 503 with a
     // Retry-After the browser can actually act on — never a bare 403 passthrough.
+    const errAny = error as any;
+
     return NextResponse.json(
       {
-        error: (error as any).viewerMessage || error.message,
+        error: errAny.viewerMessage || error.message,
         detail: error.message,
-        kind: (error as any).kind || 'unknown',
+        kind: errAny.kind || 'unknown',
         media: [],
         pageInfo: { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false },
       },
       {
-        status: error.kind === 'query' ? 400 : 503,
-        headers: { 'Retry-After': String(error.retryAfter ?? 60) },
+        status: errAny.kind === 'query' ? 400 : 503,
+        headers: { 'Retry-After': String(errAny.retryAfter ?? 60) },
       },
     );
   }
