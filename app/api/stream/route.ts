@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getAnime } from '@/services/anilist';
 import { signProxyUrl, signCaptionUrl } from '@/lib/stream/signing';
-import { ProviderError, toLangCode, type ProviderEpisodeSources } from '@/lib/providers/types';
+import {
+  ProviderError, toLangCode, withTimeout, Budget,
+  type ProviderEpisodeSources,
+} from '@/lib/providers/types';
+import { read as cacheRead, write as cacheWrite } from '@/lib/catalogue/cache';
 import {
   consumetConfigured, consumetEpisodes, consumetSources,
   CONSUMET_PROVIDERS, type ConsumetProvider,
@@ -44,6 +48,23 @@ import {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/**
+ * Scraping is slow — a search, an info page and a source lookup, each a real
+ * HTTP round trip to a site that is not fast. Three numbers keep that inside
+ * a serverless invocation:
+ *
+ *   PROVIDER_MS  what one provider may take before the next one is tried
+ *   BUDGET_MS    the whole chain's wall clock, under maxDuration in vercel.json
+ *   CACHE_TTL    how long a resolved episode is reused
+ *
+ * Without the first two, one hung provider consumes the entire invocation and
+ * the fallbacks behind it never run — the request dies and the player spins.
+ */
+const PROVIDER_MS = 9_000;
+const BUDGET_MS = 26_000;
+/** Short: these URLs are signed upstream and expire, so a long cache serves 403s. */
+const CACHE_TTL = 240;
 
 export interface StreamSource {
   id: string;
@@ -306,6 +327,16 @@ export async function GET(request: Request) {
     return fromOwnBackend(provider, id, ep);
   }
 
+  const cacheKey = `stream:${anilistId}:${episode}:${requested ?? 'auto'}`;
+  const cached = cacheRead<StreamPayload>(cacheKey);
+  if (cached?.fresh) {
+    return NextResponse.json(cached.value, {
+      headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'cache' },
+    });
+  }
+
+  const budget = new Budget(BUDGET_MS);
+
   /* 2. The scraper APIs. */
   if (consumetConfigured() || aniwatchConfigured() || hianimeConfigured()) {
     const failures: string[] = [];
@@ -316,8 +347,14 @@ export async function GET(request: Request) {
 
     if (consumetConfigured() && requested !== 'aniwatch') {
       for (const name of order) {
+        if (budget.spent()) break;
         try {
-          const payload = await fromConsumet(anilistId, episode, name);
+          const payload = await withTimeout(
+            fromConsumet(anilistId, episode, name),
+            budget.slice(PROVIDER_MS),
+            `consumet/${name}`,
+          );
+          cacheWrite(cacheKey, { ...payload, source: 'consumet' }, CACHE_TTL);
           return NextResponse.json({ ...payload, source: 'consumet' }, {
             headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': `consumet:${name}` },
           });
@@ -331,10 +368,15 @@ export async function GET(request: Request) {
       try {
         // Aniwatch has no AniList mapping, so it needs the title to search by.
         const { anime } = await getAnime(anilistId);
-        const payload = await fromAniwatch(
-          [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
-          episode,
+        const payload = await withTimeout(
+          fromAniwatch(
+            [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
+            episode,
+          ),
+          budget.slice(PROVIDER_MS),
+          'aniwatch',
         );
+        cacheWrite(cacheKey, { ...payload, source: 'aniwatch' }, CACHE_TTL);
         return NextResponse.json({ ...payload, source: 'aniwatch' }, {
           headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'aniwatch' },
         });
@@ -374,8 +416,17 @@ export async function GET(request: Request) {
 
       if (titles.length > 0) {
         for (const name of libProviderOrder()) {
+          if (budget.spent()) {
+            failures.push(`${name}: skipped, request budget spent`);
+            break;
+          }
           try {
-            const payload = await fromLibProvider(name, titles, episode);
+            const payload = await withTimeout(
+              fromLibProvider(name, titles, episode),
+              budget.slice(PROVIDER_MS),
+              name,
+            );
+            cacheWrite(cacheKey, { ...payload, source: 'hianime' }, CACHE_TTL);
             return NextResponse.json({ ...payload, source: 'hianime' }, {
               headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': `consumet-lib:${name}` },
             });

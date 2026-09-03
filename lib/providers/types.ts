@@ -99,3 +99,56 @@ export function toLangCode(label: string): string {
     } as Record<string, string>
   )[key] ?? (key.length === 2 ? key : 'und');
 }
+
+/**
+ * Give a provider a hard deadline.
+ *
+ * The in-process scrapers take a plain function call, not an AbortSignal, so
+ * there is no way to cancel the work — this abandons it instead. The abandoned
+ * promise still settles somewhere and is deliberately swallowed; what matters
+ * is that the request stops waiting, because on a serverless host a single
+ * hung provider otherwise burns the whole invocation and the fallbacks behind
+ * it never get a turn. That is the "spins forever" failure.
+ */
+export function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new ProviderError(`${label} did not respond in time.`, `timeout after ${ms}ms`)),
+      ms,
+    );
+  });
+
+  work.catch(() => {
+    /* Losing the race must not surface as an unhandled rejection. */
+  });
+
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
+/**
+ * A wall-clock budget for one request, so the sum of the fallbacks cannot
+ * outlast the function's own limit. Each provider gets the smaller of its
+ * own slice and whatever is left.
+ */
+export class Budget {
+  private readonly endsAt: number;
+
+  constructor(totalMs: number) {
+    this.endsAt = Date.now() + totalMs;
+  }
+
+  remaining(): number {
+    return Math.max(0, this.endsAt - Date.now());
+  }
+
+  /** How long the next attempt may take, or 0 when there is no time left. */
+  slice(preferredMs: number): number {
+    return Math.min(preferredMs, this.remaining());
+  }
+
+  spent(): boolean {
+    return this.remaining() <= 0;
+  }
+}

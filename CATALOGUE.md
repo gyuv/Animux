@@ -138,6 +138,26 @@ every episode played the same stock cartoon, so an unconfigured deployment
 looked exactly like a broken one. `STREAM_DEMO=1` brings the clip back for
 working on the player.
 
+### Serverless timing
+
+Scraping is three real round trips — search, info, sources — to sites that are
+not fast, and a serverless invocation has a hard ceiling. Three numbers keep
+the two compatible:
+
+- **Per provider**: 9 s. A provider that has not answered by then is abandoned
+  and the next one is tried. The scrapers take a plain function call rather
+  than an AbortSignal, so the work cannot truly be cancelled — it is dropped,
+  which is what matters, because the request stops waiting.
+- **Per request**: 26 s of wall clock across the whole chain, under the 30 s
+  `maxDuration` in `vercel.json`. Providers still queued when the budget is
+  gone are skipped and say so in the failure detail.
+- **Cache**: a resolved episode is reused for 4 minutes. Deliberately short —
+  these URLs are signed upstream and expire, so a long cache would serve 403s.
+
+Without the first two, one hung provider consumes the entire invocation, the
+fallbacks behind it never run, and the player spins until the function is
+killed. That is the usual cause of "loading forever" on this kind of app.
+
 ### Legality
 
 Consumet and Aniwatch scrape sites that hold no licence to the content they
