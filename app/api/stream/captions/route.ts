@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { verifyProxyUrl } from '@/lib/stream/signing';
 
 /**
  * Caption proxy.
@@ -9,9 +10,13 @@ import { NextResponse } from 'next/server';
  * subtitles that never appear. Serving them from our own origin removes the
  * whole class of problem.
  *
- * The host allowlist is the point of the route, not an afterthought: an
- * unrestricted `?src=` is a server-side request forgery hole that will happily
- * fetch a cloud metadata endpoint for anyone who asks.
+ * Restricting what it will fetch is the point of the route, not an
+ * afterthought: an unrestricted `?src=` is a server-side request forgery hole
+ * that will happily fetch a cloud metadata endpoint for anyone who asks. Two
+ * ways in are accepted — a URL this server signed (how the stream route hands
+ * over provider captions, whose hosts rotate per request and so cannot be
+ * listed ahead of time), or a host on the static allowlist (for captions
+ * pointed at by hand or by your own backend).
  */
 
 export const runtime = 'nodejs';
@@ -53,7 +58,17 @@ function demoTrack(lang: string, episode: string): string {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const src = searchParams.get('src');
+
+  // A signed link wins outright: the stream route minted it for a host we
+  // could not have known in advance.
+  const signed = searchParams.get('sig') ? verifyProxyUrl(searchParams) : null;
+
+  const src = signed?.ok ? signed.url : searchParams.get('src');
+
+  if (signed && !signed.ok) {
+    const status = signed.reason === 'expired' ? 410 : 403;
+    return NextResponse.json({ error: `Caption link rejected (${signed.reason}).` }, { status });
+  }
 
   if (!src) {
     const lang = searchParams.get('lang') ?? 'en';
@@ -70,19 +85,22 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Not a valid URL.' }, { status: 400 });
   }
 
-  if (target.protocol !== 'https:') {
-    return NextResponse.json({ error: 'Only https sources are proxied.' }, { status: 400 });
+  if (target.protocol !== 'https:' && target.protocol !== 'http:') {
+    return NextResponse.json({ error: 'Only http(s) sources are proxied.' }, { status: 400 });
   }
 
-  if (!allowedHosts().has(target.hostname)) {
+  if (!signed?.ok && !allowedHosts().has(target.hostname)) {
     return NextResponse.json(
       { error: 'That host is not on the caption allowlist. Add it to STREAM_SUBTITLE_HOSTS.' },
       { status: 403 },
     );
   }
 
+  const headers: Record<string, string> = {};
+  if (signed?.ok && signed.referer) headers.Referer = signed.referer;
+
   try {
-    const upstream = await fetch(target, { signal: AbortSignal.timeout(10_000) });
+    const upstream = await fetch(target, { headers, signal: AbortSignal.timeout(10_000) });
     if (!upstream.ok) {
       return NextResponse.json({ error: 'Could not fetch that caption file.' }, { status: 502 });
     }

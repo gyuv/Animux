@@ -131,15 +131,11 @@ IP blocked? Those have completely different fixes.
 
 ## Streaming sources
 
-`app/api/stream/route.ts` defines the contract the player consumes. It does
-**not** source video. Point it at a backend you are licensed to serve from:
+`app/api/stream/route.ts` resolves an episode through the first source that is
+configured.
 
-```
-STREAM_PROVIDER_URL=https://your-backend.example/resolve
-STREAM_PROVIDER_KEY=optional-bearer-token
-```
-
-Expected response:
+**1. Your own backend.** Point `STREAM_PROVIDER_URL` at something you are
+licensed to serve from and return:
 
 ```jsonc
 {
@@ -155,17 +151,34 @@ Expected response:
 }
 ```
 
-Return one `sources` entry per audio track and the language picker populates
-itself. With no provider set the route serves public test streams plus a
-generated caption track, so playback, language switching, subtitles, chapter
-skipping and resume are all exercisable in development.
+One `sources` entry per audio track and the language picker populates itself.
 
-Caption files are proxied through `/api/stream/captions` rather than linked
-directly. A `<track>` element is subject to CORS and provider CDNs routinely
-lack the headers, and the failure mode is the worst kind — no error, just
-subtitles that never appear. The proxy only fetches hosts on an allowlist
-(`STREAM_SUBTITLE_HOSTS`, comma separated, plus the provider's own host); an
-open `?src=` would be a server-side request forgery hole.
+**2. Consumet / Aniwatch.** Set `CONSUMET_API_URL` and/or `ANIWATCH_API_URL`
+at your own deployments of those projects and `lib/providers/` maps them onto
+the same shape — Consumet first, per provider, then Aniwatch. Consumet's
+`/meta/anilist/` routes are used so episodes resolve from the AniList id
+directly rather than by fuzzy title match, and they also supply per-episode
+artwork, which is better than AniList's own patchy `streamingEpisodes`.
+
+Streams from these providers only play through `/api/stream/proxy`: their CDNs
+reject requests without a `Referer`, which a browser cannot set on HLS segment
+requests. The proxy attaches it, rewrites every URI in the playlist to come
+back through itself, and refuses any URL it did not sign — set
+`STREAM_PROXY_SECRET` to 32+ random characters.
+
+Be clear-eyed about what this option is: both projects scrape sites that hold
+no licence to the content. Neither is hosted for you, and neither runs unless
+you set its variable.
+
+**3. Neither.** Public test streams plus a generated caption track, so
+playback, language switching, subtitles, chapter skipping and resume stay
+exercisable in development.
+
+Caption files are always proxied through `/api/stream/captions` rather than
+linked directly. A `<track>` element is subject to CORS and provider CDNs
+routinely lack the headers; the failure mode is the worst kind — no error,
+just subtitles that never appear. Provider captions are signed the same way as
+streams; hand-configured ones use the `STREAM_SUBTITLE_HOSTS` allowlist.
 
 ---
 
@@ -180,7 +193,7 @@ app/
   watch/[id]/           full-screen player
   library/ settings/    local library and playback defaults
   api/catalogue/        proxy, cache and health check for AniList
-  api/stream/           source contract and caption proxy
+  api/stream/           source contract, episode metadata, caption and HLS proxy
 components/
   shell/AppShell        device-shaped navigation and top bar
   search/               command palette, filter bar
@@ -192,6 +205,8 @@ components/
 hooks/                  useDevice, useChroma, useSpatialNav
 lib/chroma.ts           artwork colour extraction and legibility
 lib/catalogue/          rate limiter and stale-while-revalidate cache
+lib/providers/          Consumet and Aniwatch adapters
+lib/stream/signing.ts   HMAC signing for proxied stream URLs
 services/anilist.ts     every query the app makes
 store/useLibrary.ts     progress, saved titles, preferences
 ```

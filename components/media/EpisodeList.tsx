@@ -24,6 +24,13 @@ import { timecode } from '@/lib/format';
 const CHUNK = 100;
 const CARD_LIMIT = 60;
 
+interface ProviderEpisodeMeta {
+  number: number;
+  title: string | null;
+  image: string | null;
+  imageProxy: string | null;
+}
+
 export function EpisodeList({
   animeId,
   total,
@@ -38,9 +45,28 @@ export function EpisodeList({
   const [mounted, setMounted] = useState(false);
   const [range, setRange] = useState(0);
   const [filter, setFilter] = useState('');
+  const [fromProvider, setFromProvider] = useState<ProviderEpisodeMeta[]>([]);
   const progress = useLibrary((s) => s.progress);
 
   useEffect(() => setMounted(true), []);
+
+  /* The streaming provider knows more about episodes than AniList does — real
+     titles and artwork for shows where `streamingEpisodes` is empty. It is
+     fetched after mount rather than on the server so a slow or missing
+     provider never delays the page: the AniList data renders first and this
+     upgrades it in place. */
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(`/api/stream/episodes?id=${animeId}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : { episodes: [] }))
+      .then((body) => setFromProvider(body.episodes ?? []))
+      .catch(() => {
+        /* No provider configured, or it is down. The AniList data stands. */
+      });
+
+    return () => controller.abort();
+  }, [animeId]);
 
   // When a show is still airing, AniList's `episodes` is often null; the
   // next-airing number tells us how many have actually broadcast.
@@ -51,9 +77,11 @@ export function EpisodeList({
   );
 
   /* AniList's streaming titles arrive as "Episode 7 - The Sword"; the number is
-     the only reliable way to line them up with our own numbering. */
+     the only reliable way to line them up with our own numbering. Provider
+     data is keyed by number already, and wins where the two disagree. */
   const metaByNumber = useMemo(() => {
-    const map = new Map<number, { title: string | null; thumbnail: string | null }>();
+    const map = new Map<number, { title: string | null; thumbnail: string | null; viaProxy: string | null }>();
+
     streamingEpisodes.forEach((ep, i) => {
       const match = ep.title?.match(/episode\s+(\d+)/i);
       const n = match ? Number(match[1]) : i + 1;
@@ -61,11 +89,22 @@ export function EpisodeList({
         map.set(n, {
           title: ep.title?.replace(/^episode\s+\d+\s*[-–—:]\s*/i, '').trim() || null,
           thumbnail: ep.thumbnail ?? null,
+          viaProxy: null,
         });
       }
     });
+
+    for (const ep of fromProvider) {
+      const existing = map.get(ep.number);
+      map.set(ep.number, {
+        title: ep.title ?? existing?.title ?? null,
+        thumbnail: ep.image ?? existing?.thumbnail ?? null,
+        viaProxy: ep.image ? ep.imageProxy : null,
+      });
+    }
+
     return map;
-  }, [streamingEpisodes]);
+  }, [streamingEpisodes, fromProvider]);
 
   const ranges = useMemo(() => {
     const out: [number, number][] = [];
@@ -178,7 +217,7 @@ export function EpisodeList({
 /* ------------------------------------------------------------------- bits */
 
 type Entry = { position: number; duration: number } | undefined;
-type Meta = { title: string | null; thumbnail: string | null } | undefined;
+type Meta = { title: string | null; thumbnail: string | null; viaProxy?: string | null } | undefined;
 
 /** The https form of an http URL, or null when there is nothing to retry. */
 function httpsForm(url: string): string | null {
@@ -200,21 +239,39 @@ function EpisodeCard({
   const done = pct >= 92;
 
   /* A thumbnail URL existing is not the same as it loading. These point at a
-     dozen third-party CDNs whose records go stale, and several refuse requests
-     carrying a Referer from anywhere but their own site — so a dead image has
-     to fall back to the numbered panel rather than leave a blank frame, which
-     is what the card did before.
+     dozen third-party CDNs whose records go stale, several refuse requests
+     carrying a foreign Referer, and AniList's older records still carry
+     `http://` URLs an https deployment blocks as mixed content in silence.
+     Every one of those left a blank frame where the artwork should be.
 
-     One retry sits in between: a number of AniList's older records still carry
-     `http://` thumbnails, which an https deployment blocks as mixed content
-     silently. Retrying the same URL over https recovers those, and trying the
-     original first keeps http development working. */
+     So the card walks a short ladder and only gives up at the end:
+       1. the URL as given — free, browser-cached, right almost always
+       2. one recovery step — the signed proxy where the provider gave us one
+          (it carries a Referer and re-serves under our own scheme), otherwise
+          the same URL over https for the mixed-content case
+       3. the numbered panel — never a blank frame
+
+     Two rungs, not three, on purpose: each failure remounts the <img>, and a
+     longer remount-on-error chain proved unreliable enough in testing to skip
+     the rung that mattered. The proxy subsumes what the https guess recovers. */
+  const ladder = useMemo(() => {
+    const original = meta?.thumbnail;
+    if (!original) return [];
+    const recovery = meta?.viaProxy ?? httpsForm(original);
+    return recovery ? [original, recovery] : [original];
+  }, [meta?.thumbnail, meta?.viaProxy]);
+
   const [attempt, setAttempt] = useState(0);
-  const original = meta?.thumbnail ?? null;
-  const retry = original ? httpsForm(original) : null;
-  const thumbnail = attempt === 0 ? original : attempt === 1 ? retry : null;
 
-  const onImageError = () => setAttempt((a) => (a === 0 && retry ? 1 : 2));
+  /* Episode metadata arrives after mount and swaps the artwork underneath a
+     card that may already have exhausted its ladder. Without this reset such a
+     card stays on the numbered panel forever, showing nothing for a URL that
+     was never actually tried. */
+  const ladderKey = ladder[0] ?? '';
+  useEffect(() => setAttempt(0), [ladderKey]);
+
+  const thumbnail = ladder[attempt] ?? null;
+  const onImageError = () => setAttempt((a) => Math.min(a + 1, ladder.length));
 
   const body = (
     <>

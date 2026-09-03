@@ -47,9 +47,13 @@ banner above the content rather than replacing it.
 | `ANILIST_RATE_PER_MIN` | `24` | Lower it if you get rate limited; do not raise it above 30 while the API is degraded |
 | `ANILIST_BURST` | `4` | Maximum simultaneous requests |
 | `ANILIST_ENDPOINT` | `https://graphql.anilist.co` | Point at a mirror, or at a fixture server when developing offline |
-| `STREAM_PROVIDER_URL` | — | Where the player resolves episodes; without it the demo streams are served |
+| `STREAM_PROVIDER_URL` | — | Your own licensed backend. Takes precedence over everything below |
 | `STREAM_PROVIDER_KEY` | — | Bearer token for the above, if it needs one |
 | `STREAM_SUBTITLE_HOSTS` | — | Comma-separated hosts the caption proxy may fetch from, beyond the provider's own |
+| `CONSUMET_API_URL` | — | Your Consumet deployment. Enables the scraper path |
+| `ANIWATCH_API_URL` | — | Your Aniwatch deployment. Fallback for the above |
+| `STREAM_PROXY_SECRET` | random per process | **Set this.** 32+ random characters; signs proxy URLs |
+| `STREAM_PROXY_USER_AGENT` | a desktop Chrome string | Sent upstream alongside the Referer |
 
 ## Caching
 
@@ -79,3 +83,50 @@ Watch progress, saved titles and playback preferences live in `localStorage`
 via `store/useLibrary.ts`. To add a backend, implement its `SyncAdapter`
 (`pull()` and `push()`) and hand it to `attachSync` — that is the only seam the
 rest of the app knows about.
+
+## Streaming providers
+
+The player resolves an episode through the first of these that is configured:
+
+1. **`STREAM_PROVIDER_URL`** — your own backend, returning the payload shape
+   documented at the top of `app/api/stream/route.ts`. Nothing is rewritten
+   except caption URLs, which are routed through the proxy for CORS.
+2. **`CONSUMET_API_URL` / `ANIWATCH_API_URL`** — the scraper APIs, mapped onto
+   that shape by `lib/providers/`.
+3. **Neither** — public test streams, so the player stays exercisable.
+
+### Why the adapters use `/meta/anilist/`
+
+Consumet exposes both `/anime/gogoanime/info?id={slug}` and
+`/meta/anilist/info/{anilistId}`. Only the second takes an AniList id. Using
+the first would leave us matching an AniList id to a provider slug by fuzzy
+title search, which is the single biggest cause of "it played the wrong show"
+in every app built on these APIs. The meta routes also return per-episode
+`image` and `title`, which is better episode artwork than AniList's own
+`streamingEpisodes` field carries.
+
+Aniwatch has no AniList mapping at all, so `lib/providers/aniwatch.ts` has to
+search by title. That matching is deliberately strict — exact match on a
+normalised title, across every name AniList knows — because a page that says
+"no source" is recoverable and silently playing a different series is not.
+
+### The proxy is not optional
+
+These providers resolve to CDNs that reject any request without the right
+`Referer`, and a browser cannot set `Referer` on the segment requests hls.js
+makes. So segments are fetched server-side by `/api/stream/proxy`, which also
+settles CORS by being same-origin. Playlists are rewritten on the way through:
+every variant, segment and `#EXT-X-KEY` URI is re-pointed at the proxy, because
+the moment one segment URL goes direct the stream stalls a few seconds in.
+
+That route is a fetch primitive aimed at arbitrary hosts, so it only fetches
+URLs it signed itself — HMAC over the URL, Referer and an expiry, keyed by
+`STREAM_PROXY_SECRET`. A host allowlist cannot work here: stream hosts rotate
+per request and are unknown until the provider answers. Set the secret; the
+per-process fallback breaks links across restarts and between instances.
+
+### Legality
+
+Consumet and Aniwatch scrape sites that hold no licence to the content they
+serve. Neither is hosted for you, and neither is enabled unless you set its
+variable. Option 1 above is the path without that problem.
