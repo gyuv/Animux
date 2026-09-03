@@ -187,9 +187,13 @@ Be clear-eyed about what this option is: both projects scrape sites that hold
 no licence to the content. Neither is hosted for you, and neither runs unless
 you set its variable.
 
-**3. Neither.** Public test streams plus a generated caption track, so
-playback, language switching, subtitles, chapter skipping and resume stay
-exercisable in development.
+**3. Neither.** The player shows a setup screen naming what is missing, with a
+live check of what the deployment can actually reach. It deliberately does not
+play anything: an earlier version served a public test clip here, which meant
+every episode of every title played the same stock cartoon — indistinguishable
+from the app being broken, and the viewer only found out after sitting through
+something they had not chosen. Set `STREAM_DEMO=1` to get that clip back while
+working on the player itself.
 
 Caption files are always proxied through `/api/stream/captions` rather than
 linked directly. A `<track>` element is subject to CORS and provider CDNs

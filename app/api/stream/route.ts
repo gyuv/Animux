@@ -293,10 +293,27 @@ export async function GET(request: Request) {
     );
   }
 
-  /* 3. Nothing configured — demo streams. */
-  return NextResponse.json(demo(id, ep), {
-    headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'demo' },
-  });
+  /* 3. Nothing configured.
+   *
+   * This used to serve a public test clip. That was a bad call: every episode
+   * of every title played the same stock cartoon, which is indistinguishable
+   * from the app being broken and wastes the viewer's time before they find
+   * out no source is connected. Saying so outright is more useful than
+   * playing something. The clip is still available behind STREAM_DEMO=1 for
+   * working on the player itself. */
+  if (process.env.STREAM_DEMO === '1') {
+    return NextResponse.json(demo(id, ep), {
+      headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'demo' },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      error: 'No streaming source is connected.',
+      needsSetup: true,
+    },
+    { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'unconfigured' } },
+  );
 }
 
 function describe(err: unknown): string {

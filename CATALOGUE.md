@@ -125,15 +125,16 @@ URLs it signed itself — HMAC over the URL, Referer and an expiry, keyed by
 per request and are unknown until the provider answers. Set the secret; the
 per-process fallback breaks links across restarts and between instances.
 
-### "Why is it playing a cartoon?"
+### "Why won't anything play?"
 
-Because nothing is configured. With no provider variable set the route serves a
-public test stream, and until recently it did so with no indication — an
-unconfigured deployment and a working one produced an identical player, which
-reads as the app being broken rather than as a setting being absent.
+Because no source is connected. `/api/stream` returns 503 with `needsSetup`,
+and the player renders a setup screen naming the missing variable with a live
+reachability check — `/api/stream/health` reports the same thing as JSON.
 
-The player now says so on screen, and `/api/stream/health` reports which source
-is active, whether it is reachable, and what is missing. Check that first.
+It used to serve a public test clip instead, which was worse than useless:
+every episode played the same stock cartoon, so an unconfigured deployment
+looked exactly like a broken one. `STREAM_DEMO=1` brings the clip back for
+working on the player.
 
 ### Legality
 

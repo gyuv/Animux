@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 import {
   Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize,
   SkipForward, SkipBack, Settings, ArrowLeft, Loader2, Subtitles,
-  PictureInPicture2, Keyboard, RotateCcw, RotateCw, AlertTriangle,
+  PictureInPicture2, Keyboard, RotateCcw, RotateCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLibrary } from '@/store/useLibrary';
@@ -14,6 +14,7 @@ import type { StreamPayload, StreamSource } from '@/app/api/stream/route';
 import { PlayerMenu, type QualityLevel } from './PlayerMenu';
 import { NextUpCard } from './NextUpCard';
 import { ShortcutSheet } from './ShortcutSheet';
+import { SetupScreen } from './SetupScreen';
 
 interface Props {
   animeId: string;
@@ -24,6 +25,9 @@ interface Props {
   totalEpisodes: number | null;
   startAt?: number;
 }
+
+/** Thrown when the catalogue is fine but no video source is connected. */
+class SetupRequired extends Error {}
 
 const SUB_SIZE = { small: '78%', medium: '100%', large: '132%' };
 const SEEK_STEP = 10;
@@ -45,6 +49,7 @@ export function Player({
   const [payload, setPayload] = useState<StreamPayload | null>(null);
   const [source, setSource] = useState<StreamSource | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [buffering, setBuffering] = useState(true);
 
   const [playing, setPlaying] = useState(false);
@@ -69,6 +74,7 @@ export function Player({
     let live = true;
     setPayload(null);
     setError(null);
+    setNeedsSetup(false);
     setBuffering(true);
     setPosition(startAt);
     setLevels([]);
@@ -76,6 +82,7 @@ export function Player({
     fetch(`/api/stream?id=${animeId}&ep=${episode}`)
       .then(async (r) => {
         const body = await r.json();
+        if (body?.needsSetup) throw new SetupRequired();
         if (!r.ok) throw new Error(body.error ?? 'That episode would not load.');
         return body as StreamPayload;
       })
@@ -90,7 +97,11 @@ export function Player({
           data.sources[0];
         setSource(pick ?? null);
       })
-      .catch((e) => live && setError(e.message));
+      .catch((e) => {
+        if (!live) return;
+        if (e instanceof SetupRequired) setNeedsSetup(true);
+        else setError(e.message);
+      });
 
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -345,6 +356,10 @@ export function Player({
 
   /* ----------------------------------------------------------------- view */
 
+  if (needsSetup) {
+    return <SetupScreen animeId={animeId} title={title} episode={episode} />;
+  }
+
   if (error) {
     return (
       <div className="grid min-h-svh place-items-center bg-ink-900 px-6 text-center">
@@ -402,30 +417,6 @@ export function Player({
           />
         ))}
       </video>
-
-      {/* An unconfigured deployment used to play a stock test cartoon with no
-          indication that it was doing so, which reads as the app being broken
-          or fake rather than as a missing setting. Say it plainly instead. */}
-      {payload?.source === 'demo' && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center p-4 pt-20">
-          <p
-            role="status"
-            className="pointer-events-auto flex max-w-[46ch] items-start gap-2.5 rounded-panel
-                       border border-gold/40 bg-ink-900/90 px-4 py-3 text-meta text-paper backdrop-blur-xl"
-          >
-            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-gold" aria-hidden />
-            <span>
-              <span className="font-semibold">This is a placeholder clip, not the episode.</span>{' '}
-              <span className="text-haze">
-                No streaming source is configured, so Animux is playing a public test stream. Set{' '}
-                <code className="text-paper">CONSUMET_API_URL</code> or{' '}
-                <code className="text-paper">STREAM_PROVIDER_URL</code> and redeploy. Check{' '}
-                <code className="text-paper">/api/stream/health</code> to see what it detects.
-              </span>
-            </span>
-          </p>
-        </div>
-      )}
 
       {buffering && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">

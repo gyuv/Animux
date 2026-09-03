@@ -64,8 +64,8 @@ export async function GET() {
 
   const verdict = (() => {
     if (active === 'demo') {
-      return 'No streaming source is configured, so every episode plays a public test clip. ' +
-        'Set CONSUMET_API_URL (and optionally ANIWATCH_API_URL), or STREAM_PROVIDER_URL for your own backend, then redeploy.';
+      return 'No streaming source is connected, so no episode can play. Deploy a source API and set ' +
+        'ANIWATCH_API_URL (or CONSUMET_API_URL), or STREAM_PROVIDER_URL for your own licensed backend, then redeploy.';
     }
     if (own.configured && !own.reachable) return 'STREAM_PROVIDER_URL is set but not answering.';
     if (consumet.configured && !consumet.reachable) {
