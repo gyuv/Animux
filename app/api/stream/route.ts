@@ -46,6 +46,15 @@ export interface StreamSource {
   kind: 'sub' | 'dub';
   /** Optional hint for fixed-rendition sources; HLS reports its own levels. */
   quality?: string;
+  /**
+   * Route this URL through the signed proxy instead of handing it to the
+   * player directly. Needed whenever the host checks `Referer` or serves no
+   * CORS headers — which is most of them — because the proxy is also what
+   * rewrites the URIs inside an HLS manifest. Implied by `referer`.
+   */
+  proxy?: boolean;
+  /** Referer the host requires. Setting it implies `proxy: true`. */
+  referer?: string;
 }
 
 export interface StreamSubtitle {
@@ -67,6 +76,8 @@ export interface StreamPayload {
    * lying to you rather than like a setting is missing.
    */
   source?: 'own' | 'consumet' | 'aniwatch' | 'demo';
+  /** Referer applied to this payload's caption files, when they need one. */
+  referer?: string;
 }
 
 /* ------------------------------------------------------------------ demo */
@@ -318,12 +329,31 @@ async function fromOwnBackend(provider: string, id: string, ep: string) {
       );
     }
 
+    /* A backend that hands back a direct playlist URL usually needs the same
+       treatment the scraper path gets: the CDN wants a Referer the browser
+       cannot send, and the segment URIs inside the manifest have to be
+       rewritten or playback stalls after the first fragment. Set `proxy: true`
+       on a source (or give it a `referer`, which implies it) and it is routed
+       through the signed proxy. Sources without either are passed straight to
+       the player, which is right for anything you serve yourself. */
+    const sources = payload.sources.map((s) => {
+      const needsProxy = s.proxy === true || Boolean(s.referer);
+      if (!needsProxy || s.url.startsWith('/')) return s;
+      return {
+        ...s,
+        url: signProxyUrl(
+          { url: s.url, referer: s.referer },
+          s.type === 'hls' ? 'playlist' : 'segment',
+        ),
+      };
+    });
+
     const subtitles = (payload.subtitles ?? []).map((s) => ({
       ...s,
-      url: s.url.startsWith('/') ? s.url : `/api/stream/captions?src=${encodeURIComponent(s.url)}`,
+      url: s.url.startsWith('/') ? s.url : signCaptionUrl(s.url, payload.referer),
     }));
 
-    return NextResponse.json({ ...payload, subtitles, source: 'own' }, {
+    return NextResponse.json({ ...payload, sources, subtitles, source: 'own' }, {
       headers: { 'Cache-Control': 'public, max-age=300' },
     });
   } catch {

@@ -153,6 +153,23 @@ licensed to serve from and return:
 
 One `sources` entry per audio track and the language picker populates itself.
 
+If a source is a direct playlist URL on a host that checks `Referer` or serves
+no CORS headers — which is most of them — add `referer` to it (or `proxy: true`
+on its own) and Animux routes it through the signed proxy:
+
+```jsonc
+{ "id": "ja", "label": "Japanese", "url": "https://cdn.example/master.m3u8",
+  "type": "hls", "audioLang": "ja", "kind": "sub",
+  "referer": "https://player.example/" }
+```
+
+That matters more than it looks. Piping a playlist through a proxy unchanged
+appears to work — the manifest loads — and then playback stops a few seconds
+in, because the segment URIs inside it still point at the origin and the
+browser fetches those without the header. The proxy rewrites every URI in the
+manifest (variants, segments, `#EXT-X-KEY`, `#EXT-X-MAP`) to come back through
+itself, which is the part that makes it actually play.
+
 **2. Consumet / Aniwatch.** Set `CONSUMET_API_URL` and/or `ANIWATCH_API_URL`
 at your own deployments of those projects and `lib/providers/` maps them onto
 the same shape — Consumet first, per provider, then Aniwatch. Consumet's
