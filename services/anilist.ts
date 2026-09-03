@@ -9,7 +9,51 @@
  *  - Failures returned an empty page indistinguishable from "no results",
  *    so the UI could not tell a network problem from an empty shelf.
  */
+// services/anilist.ts
 
+export async function getAnimeByIds(ids: number[]) {
+  const query = `
+    query ($ids: [Int]) {
+      Page (perPage: 50) {
+        media (id_in: $ids, type: ANIME) {
+          id
+          title {
+            romaji
+            english
+            native
+          }
+          coverImage {
+            large
+            medium
+          }
+          episodes
+          status
+          format
+          seasonYear
+          averageScore
+        }
+      }
+    }
+  `;
+
+  const variables = { ids };
+
+  const response = await fetch('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch anime by IDs: ${response.statusText}`);
+  }
+
+  const json = await response.json();
+  return json.data.Page.media;
+}
 const ENDPOINT = 'https://graphql.anilist.co';
 
 export interface AnimeTitle {
