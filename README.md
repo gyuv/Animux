@@ -187,7 +187,17 @@ Be clear-eyed about what this option is: both projects scrape sites that hold
 no licence to the content. Neither is hosted for you, and neither runs unless
 you set its variable.
 
-**3. Neither.** The player shows a setup screen naming what is missing, with a
+**3. In-process scraping.** The `aniwatch` package scrapes HiAnime from inside
+this app's own API routes, so there is nothing separate to deploy. On by
+default; `HIANIME_ENABLED=0` opts out. It runs on the server, not in the
+browser — the catalogue serves no CORS headers and its segments are
+Referer-locked, so anything claiming this works client-side describes
+something that loads a manifest and then stalls. Streams still go out through
+the signed proxy, which is what attaches the header and rewrites the manifest.
+
+Like option 2, this scrapes a site holding no licence to what it serves.
+
+**4. Nothing available.** The player shows a setup screen naming what is missing, with a
 live check of what the deployment can actually reach. It deliberately does not
 play anything: an earlier version served a public test clip here, which meant
 every episode of every title played the same stock cartoon — indistinguishable
@@ -226,7 +236,8 @@ components/
 hooks/                  useDevice, useChroma, useSpatialNav
 lib/chroma.ts           artwork colour extraction and legibility
 lib/catalogue/          rate limiter and stale-while-revalidate cache
-lib/providers/          Consumet and Aniwatch adapters
+lib/providers/          Consumet, Aniwatch and in-process HiAnime adapters
+lib/providers/matching  AniList-title to scraper-title matching, shared
 lib/stream/signing.ts   HMAC signing for proxied stream URLs
 services/anilist.ts     every query the app makes
 store/useLibrary.ts     progress, saved titles, preferences

@@ -12,6 +12,7 @@
     "@consumet/extensions": "^1.8.8",
     "@prisma/client": "^7.10.0",
     "@supabase/supabase-js": "^2.115.0",
+    "aniwatch": "^2.27.9",
     "framer-motion": "^11.0.0",
     "hls.js": "^1.5.17",
     "lucide-react": "^0.400.0",

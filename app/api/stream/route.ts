@@ -9,17 +9,22 @@ import {
 import {
   aniwatchConfigured, aniwatchEpisodes, aniwatchFindId, aniwatchSources,
 } from '@/lib/providers/aniwatch';
+import {
+  hianimeConfigured, hianimeEpisodes, hianimeFindId, hianimeSources,
+} from '@/lib/providers/hianime';
 
 /**
  * Stream resolution.
  *
- * Three ways to get a payload, tried in order:
+ * Four ways to get a payload, tried in order:
  *
  *   1. STREAM_PROVIDER_URL — your own backend, returning the shape below
  *      verbatim. Nothing here touches it beyond routing captions.
- *   2. CONSUMET_API_URL / ANIWATCH_API_URL — the scraper APIs, mapped onto
- *      that same shape by the adapters in `lib/providers/`.
- *   3. Neither set — public test streams, so the player is exercisable.
+ *   2. CONSUMET_API_URL / ANIWATCH_API_URL — separate scraper services, if
+ *      you run them, mapped onto that same shape by `lib/providers/`.
+ *   3. The `aniwatch` package, scraping HiAnime inside this process. On by
+ *      default because it needs nothing deployed; HIANIME_ENABLED=0 opts out.
+ *   4. Nothing available — a setup screen, or STREAM_DEMO=1 for a test clip.
  *
  *   GET /api/stream?id=<anilistId>&ep=<n>[&provider=gogoanime|zoro|aniwatch]
  *   {
@@ -29,9 +34,8 @@ import {
  *     duration:  number | null
  *   }
  *
- * Note on legality: Consumet and Aniwatch scrape streams from sites that hold
- * no licence to them. Neither is hosted for you and neither is enabled unless
- * you set its variable. Option 1 is the path that does not have that problem.
+ * Note on legality: options 2 and 3 scrape sites that hold no licence to the
+ * content they serve. Option 1 is the path without that problem.
  */
 
 export const runtime = 'nodejs';
@@ -75,7 +79,7 @@ export interface StreamPayload {
    * cartoon is indistinguishable from a broken one — it looks like the app is
    * lying to you rather than like a setting is missing.
    */
-  source?: 'own' | 'consumet' | 'aniwatch' | 'demo';
+  source?: 'own' | 'consumet' | 'aniwatch' | 'hianime' | 'demo';
   /** Referer applied to this payload's caption files, when they need one. */
   referer?: string;
 }
@@ -223,6 +227,36 @@ async function fromAniwatch(
   return merge(payloads);
 }
 
+/**
+ * The same shape as `fromAniwatch`, against the scraper running in this
+ * process rather than a service you had to deploy first.
+ */
+async function fromHiAnime(
+  titles: (string | null | undefined)[],
+  episode: number,
+): Promise<StreamPayload> {
+  const animeId = await hianimeFindId(titles);
+  if (!animeId) throw new ProviderError('Could not match this title on HiAnime.');
+
+  const episodes = await hianimeEpisodes(animeId);
+  const match = episodes.find((e) => e.number === episode);
+  if (!match) throw new ProviderError(`Episode ${episode} is not listed by this source.`);
+
+  // Sub and dub are separate lookups; a missing dub is normal, not an error.
+  const [sub, dub] = await Promise.all([
+    hianimeSources(match.id, 'sub').catch(() => null),
+    hianimeSources(match.id, 'dub').catch(() => null),
+  ]);
+
+  if (!sub && !dub) throw new ProviderError('That episode returned no playable source.');
+
+  const payloads: StreamPayload[] = [];
+  if (sub) payloads.push(toPayload(sub, 'HiAnime (sub)', 'sub', 'ja'));
+  if (dub) payloads.push(toPayload(dub, 'HiAnime (dub)', 'dub', 'en'));
+
+  return merge(payloads);
+}
+
 /* ------------------------------------------------------------------ route */
 
 export async function GET(request: Request) {
@@ -248,7 +282,7 @@ export async function GET(request: Request) {
   }
 
   /* 2. The scraper APIs. */
-  if (consumetConfigured() || aniwatchConfigured()) {
+  if (consumetConfigured() || aniwatchConfigured() || hianimeConfigured()) {
     const failures: string[] = [];
 
     const order: ConsumetProvider[] = requested === 'zoro' || requested === 'gogoanime'
@@ -281,6 +315,23 @@ export async function GET(request: Request) {
         });
       } catch (err) {
         failures.push(`aniwatch: ${describe(err)}`);
+      }
+    }
+
+    // In-process scraper last: it needs no deployment, so it is the safety net
+    // under whatever services you did configure rather than a competitor to them.
+    if (hianimeConfigured()) {
+      try {
+        const { anime } = await getAnime(anilistId);
+        const payload = await fromHiAnime(
+          [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
+          episode,
+        );
+        return NextResponse.json({ ...payload, source: 'hianime' }, {
+          headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'hianime' },
+        });
+      } catch (err) {
+        failures.push(`hianime: ${describe(err)}`);
       }
     }
 

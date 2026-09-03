@@ -60,9 +60,22 @@ export async function GET() {
     probe(process.env.ANIWATCH_API_URL, '/api/v2/hianime/search?q=frieren'),
   ]);
 
-  const active = own.configured ? 'own' : consumet.configured ? 'consumet' : aniwatch.configured ? 'aniwatch' : 'demo';
+  const hianimeOn = process.env.HIANIME_ENABLED !== '0';
+  const active = own.configured
+    ? 'own'
+    : consumet.configured
+      ? 'consumet'
+      : aniwatch.configured
+        ? 'aniwatch'
+        : hianimeOn
+          ? 'hianime'
+          : 'demo';
 
   const verdict = (() => {
+    if (active === 'hianime') {
+      return 'No service is configured, so episodes resolve through the in-process HiAnime ' +
+        'scraper. Nothing to deploy; set HIANIME_ENABLED=0 to turn it off.';
+    }
     if (active === 'demo') {
       return 'No streaming source is connected, so no episode can play. Deploy a source API and set ' +
         'ANIWATCH_API_URL (or CONSUMET_API_URL), or STREAM_PROVIDER_URL for your own licensed backend, then redeploy.';
@@ -90,7 +103,12 @@ export async function GET() {
       verdict,
       activeSource: active,
       warnings,
-      providers: { own, consumet, aniwatch },
+      providers: {
+        own,
+        consumet,
+        aniwatch,
+        hianime: { configured: hianimeOn, url: 'in-process (aniwatch package)', reachable: null, status: null, error: null },
+      },
       checkedAt: new Date().toISOString(),
     },
     { headers: { 'Cache-Control': 'no-store' } },
