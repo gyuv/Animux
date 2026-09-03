@@ -12,9 +12,10 @@ import { ChromaScope } from '@/components/ui/ChromaScope';
 
 export const revalidate = 86400;
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   try {
-    const anime = await getAnime(Number(params.id));
+    const anime = await getAnime(Number(id));
     return {
       title: displayTitle(anime.title),
       description: stripHtml(anime.description).slice(0, 160),
@@ -24,8 +25,9 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
   }
 }
 
-export default async function TitlePage({ params }: { params: { id: string } }) {
-  const id = Number(params.id);
+export default async function TitlePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: rawId } = await params;
+  const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();
 
   let anime;
