@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-
+import { getAnimeStreams } from '@/services/streams';
 /**
  * Stream resolution.
  *
