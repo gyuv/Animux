@@ -60,6 +60,13 @@ export interface StreamPayload {
   subtitles: StreamSubtitle[];
   chapters: { intro?: [number, number]; outro?: [number, number] };
   duration: number | null;
+  /**
+   * Which of the three paths answered. The player renders a standing notice
+   * for 'demo', because an unconfigured deployment silently playing a stock
+   * cartoon is indistinguishable from a broken one — it looks like the app is
+   * lying to you rather than like a setting is missing.
+   */
+  source?: 'own' | 'consumet' | 'aniwatch' | 'demo';
 }
 
 /* ------------------------------------------------------------------ demo */
@@ -99,6 +106,7 @@ function demo(id: string, ep: string): StreamPayload {
     ],
     chapters: { intro: [12, 102] },
     duration: null,
+    source: 'demo',
   };
 }
 
@@ -240,7 +248,7 @@ export async function GET(request: Request) {
       for (const name of order) {
         try {
           const payload = await fromConsumet(anilistId, episode, name);
-          return NextResponse.json(payload, {
+          return NextResponse.json({ ...payload, source: 'consumet' }, {
             headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': `consumet:${name}` },
           });
         } catch (err) {
@@ -257,7 +265,7 @@ export async function GET(request: Request) {
           [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
           episode,
         );
-        return NextResponse.json(payload, {
+        return NextResponse.json({ ...payload, source: 'aniwatch' }, {
           headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'aniwatch' },
         });
       } catch (err) {
@@ -315,7 +323,7 @@ async function fromOwnBackend(provider: string, id: string, ep: string) {
       url: s.url.startsWith('/') ? s.url : `/api/stream/captions?src=${encodeURIComponent(s.url)}`,
     }));
 
-    return NextResponse.json({ ...payload, subtitles }, {
+    return NextResponse.json({ ...payload, subtitles, source: 'own' }, {
       headers: { 'Cache-Control': 'public, max-age=300' },
     });
   } catch {

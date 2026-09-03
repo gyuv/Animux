@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 import {
   Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize,
   SkipForward, SkipBack, Settings, ArrowLeft, Loader2, Subtitles,
-  PictureInPicture2, Keyboard, RotateCcw, RotateCw,
+  PictureInPicture2, Keyboard, RotateCcw, RotateCw, AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLibrary } from '@/store/useLibrary';
@@ -402,6 +402,30 @@ export function Player({
           />
         ))}
       </video>
+
+      {/* An unconfigured deployment used to play a stock test cartoon with no
+          indication that it was doing so, which reads as the app being broken
+          or fake rather than as a missing setting. Say it plainly instead. */}
+      {payload?.source === 'demo' && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center p-4 pt-20">
+          <p
+            role="status"
+            className="pointer-events-auto flex max-w-[46ch] items-start gap-2.5 rounded-panel
+                       border border-gold/40 bg-ink-900/90 px-4 py-3 text-meta text-paper backdrop-blur-xl"
+          >
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-gold" aria-hidden />
+            <span>
+              <span className="font-semibold">This is a placeholder clip, not the episode.</span>{' '}
+              <span className="text-haze">
+                No streaming source is configured, so Animux is playing a public test stream. Set{' '}
+                <code className="text-paper">CONSUMET_API_URL</code> or{' '}
+                <code className="text-paper">STREAM_PROVIDER_URL</code> and redeploy. Check{' '}
+                <code className="text-paper">/api/stream/health</code> to see what it detects.
+              </span>
+            </span>
+          </p>
+        </div>
+      )}
 
       {buffering && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">

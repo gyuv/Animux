@@ -125,6 +125,16 @@ URLs it signed itself — HMAC over the URL, Referer and an expiry, keyed by
 per request and are unknown until the provider answers. Set the secret; the
 per-process fallback breaks links across restarts and between instances.
 
+### "Why is it playing a cartoon?"
+
+Because nothing is configured. With no provider variable set the route serves a
+public test stream, and until recently it did so with no indication — an
+unconfigured deployment and a working one produced an identical player, which
+reads as the app being broken rather than as a setting being absent.
+
+The player now says so on screen, and `/api/stream/health` reports which source
+is active, whether it is reachable, and what is missing. Check that first.
+
 ### Legality
 
 Consumet and Aniwatch scrape sites that hold no licence to the content they
