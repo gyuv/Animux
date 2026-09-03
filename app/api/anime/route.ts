@@ -17,25 +17,61 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Updated to the new URL structure: /episode/{animeId}-{episodeId}/
-    const episodeUrl = `https://animesalt.cx/episode/${animeId}-${episodeId}/`;
-    const response = await fetch(episodeUrl);
+    // Try multiple possible URL structures for animesalt.cx
+    const possibleUrls = [
+      `https://animesalt.cx/episode/${animeId}-${episodeId}/`,
+      `https://animesalt.cx/watch/${animeId}/${episodeId}`,
+      `https://animesalt.cx/anime/${animeId}/${episodeId}`,
+    ];
 
-    if (!response.ok) {
+    let $;
+    let html = '';
+
+    // Find the first working URL
+    for (const url of possibleUrls) {
+      const response = await fetch(url);
+      if (response.ok) {
+        html = await response.text();
+        $ = load(html);
+        break;
+      }
+    }
+
+    if (!$) {
       return NextResponse.json(
-        { error: 'Failed to fetch episode page' },
-        { status: response.status, headers: { 'Cache-Control': 'no-store' } }
+        { error: 'Episode page not found', triedUrls: possibleUrls },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
       );
     }
 
-    const html = await response.text();
-    const $ = load(html);
+    // Strategy 1: Look for standard <video> tag
+    let videoSrc = $('video.wp-video-shortcode').attr('src');
+    
+    // Strategy 2: Look for <source> inside <video>
+    if (!videoSrc) {
+      videoSrc = $('source').first().attr('src');
+    }
 
-    const videoSrc = $('video.wp-video-shortcode').attr('src') || $('source').first().attr('src');
+    // Strategy 3: Look for JSON data in script tags (common for streaming sites)
+    if (!videoSrc) {
+      const scriptContent = $('script').filter((i, el) => {
+        const content = $(el).html() || '';
+        return content.includes('m3u8') || content.includes('hls') || content.includes('sources');
+      });
+
+      if (scriptContent.length > 0) {
+        const scriptHtml = scriptContent.html() || '';
+        // Regex to find M3U8 URLs
+        const m3u8Match = scriptHtml.match(/https?:\/\/[^"'\\s]+\.m3u8/);
+        if (m3u8Match) {
+          videoSrc = m3u8Match[0];
+        }
+      }
+    }
 
     if (!videoSrc) {
       return NextResponse.json(
-        { error: 'No video source found' },
+        { error: 'No video source found', htmlSnippet: html.substring(0, 500) },
         { status: 404, headers: { 'Cache-Control': 'no-store' } }
       );
     }
