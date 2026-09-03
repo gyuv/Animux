@@ -1,54 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchAnime, type SearchParams } from '@/services/anilist';
+import { load } from 'cheerio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const arrayParam = (value: string | null): string[] | undefined => {
-  if (!value) return undefined;
-  const values = value.split(',').map((v) => v.trim()).filter(Boolean);
-  return values.length ? values : undefined;
-};
-
-const numberParam = (value: string | null): number | undefined => {
-  if (!value) return undefined;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : undefined;
-};
-
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
+  const animeId = searchParams.get('animeId');
+  const episodeId = searchParams.get('episodeId');
 
-  const params: SearchParams = {
-    search: searchParams.get('search') || undefined,
-    genres: arrayParam(searchParams.get('genres')),
-    excludeGenres: arrayParam(searchParams.get('excludeGenres')),
-    year: numberParam(searchParams.get('year')),
-    season: searchParams.get('season') || undefined,
-    formats: arrayParam(searchParams.get('formats')),
-    status: searchParams.get('status') || undefined,
-    minScore: numberParam(searchParams.get('minScore')),
-    sort: searchParams.get('sort') || undefined,
-    page: numberParam(searchParams.get('page')),
-    perPage: numberParam(searchParams.get('perPage')),
-  };
+  if (!animeId || !episodeId) {
+    return NextResponse.json(
+      { error: 'Missing animeId or episodeId' },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 
   try {
-    const result = await searchAnime(params);
-    return NextResponse.json(result, {
-      headers: {
-        // Let the browser reuse a successful catalogue response briefly while
-        // Next/AniList handles the longer server-side cache.
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Catalogue request failed.';
-    const status = /rate limit|throttl/i.test(message) ? 429 : 502;
+    const episodeUrl = `https://animesalt.cx/episode/${animeId}/${episodeId}/`;
+    const response = await fetch(episodeUrl);
+
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: 'Failed to fetch episode page' },
+        { status: response.status, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    const html = await response.text();
+    const $ = load(html);
+
+    const videoSrc = $('video.wp-video-shortcode').attr('src') || $('source').first().attr('src');
+
+    if (!videoSrc) {
+      return NextResponse.json(
+        { error: 'No video source found' },
+        { status: 404, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     return NextResponse.json(
-      { error: message, media: [], pageInfo: { total: 0, currentPage: 1, lastPage: 1, hasNextPage: false } },
-      { status, headers: { 'Cache-Control': 'no-store' } },
+      { url: videoSrc },
+      {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+        },
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to resolve stream';
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }
