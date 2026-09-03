@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const episodeUrl = `https://animesalt.cx/episode/${animeId}/${episodeId}/`;
+    // Updated to the new URL structure: /episode/{animeId}-{episodeId}/
+    const episodeUrl = `https://animesalt.cx/episode/${animeId}-${episodeId}/`;
     const response = await fetch(episodeUrl);
 
     if (!response.ok) {
