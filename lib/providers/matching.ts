@@ -95,23 +95,57 @@ export interface Candidate {
 }
 
 /**
+ * Why a match failed, in the three shapes that need different fixes:
+ * the search never answered, it answered with nothing, or it answered with
+ * candidates that were all too different. Collapsing those into one message
+ * makes a network problem look identical to a naming problem.
+ */
+export interface MatchReport {
+  id: string | null;
+  searched: number;
+  candidates: number;
+  bestScore: number;
+  bestName: string | null;
+}
+
+export function matchWithReport(titles: string[], candidates: Candidate[]): MatchReport {
+  let best: { id: string; score: number; name: string | null } | null = null;
+
+  for (const candidate of candidates) {
+    if (!candidate.id) continue;
+    for (const name of candidate.names) {
+      if (!name) continue;
+      for (const title of titles) {
+        const score = similarity(title, name);
+        if (!best || score > best.score) best = { id: candidate.id, score, name };
+      }
+    }
+  }
+
+  return {
+    id: best && best.score >= CONFIDENCE ? best.id : null,
+    searched: titles.length,
+    candidates: candidates.length,
+    bestScore: best ? Number(best.score.toFixed(2)) : 0,
+    bestName: best?.name ?? null,
+  };
+}
+
+/** One line saying which of the three failures this was. */
+export function describeMatchFailure(report: MatchReport, source: string): string {
+  if (report.candidates === 0) {
+    return `${source}: search returned no candidates for ${report.searched} title(s) — ` +
+      'the host is unreachable, blocking us, or has changed its markup.';
+  }
+  return `${source}: ${report.candidates} candidate(s), best "${report.bestName}" scored ` +
+    `${report.bestScore} against ${report.searched} title(s), below the ${CONFIDENCE} bar.`;
+}
+
+/**
  * Pick the best-scoring candidate across every name AniList knows, or null if
  * nothing clears the bar. A page saying "no source" is recoverable; silently
  * playing a different series is not.
  */
 export function bestMatch(titles: string[], candidates: Candidate[]): string | null {
-  let best: { id: string; score: number } | null = null;
-
-  for (const candidate of candidates) {
-    if (!candidate.id) continue;
-    const score = Math.max(
-      0,
-      ...titles.flatMap((title) =>
-        candidate.names.filter(Boolean).map((name) => similarity(title, name as string)),
-      ),
-    );
-    if (!best || score > best.score) best = { id: candidate.id, score };
-  }
-
-  return best && best.score >= CONFIDENCE ? best.id : null;
+  return matchWithReport(titles, candidates).id;
 }

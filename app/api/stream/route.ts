@@ -260,8 +260,8 @@ async function fromHiAnime(
   titles: (string | null | undefined)[],
   episode: number,
 ): Promise<StreamPayload> {
+  // Throws with the reason — search refused, nothing found, or scored too low.
   const animeId = await hianimeFindId(titles);
-  if (!animeId) throw new ProviderError('Could not match this title on HiAnime.');
 
   const episodes = await hianimeEpisodes(animeId);
   const match = episodes.find((e) => e.number === episode);
@@ -293,7 +293,6 @@ async function fromLibProvider(
   episode: number,
 ): Promise<StreamPayload> {
   const animeId = await libFindId(name, titles);
-  if (!animeId) throw new ProviderError(`Could not match this title on ${name}.`);
 
   const episodes = await libEpisodes(name, animeId);
   const match = episodes.find((e) => e.number === episode);

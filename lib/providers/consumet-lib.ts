@@ -3,7 +3,7 @@ import {
   ProviderError,
   type ProviderEpisode, type ProviderEpisodeSources,
 } from './types';
-import { bestMatch, MAX_QUERIES } from './matching';
+import { matchWithReport, describeMatchFailure, MAX_QUERIES } from './matching';
 
 /**
  * Consumet's scrapers, run in-process.
@@ -81,23 +81,31 @@ function names(title: unknown): (string | null | undefined)[] {
 export async function libFindId(
   name: ConsumetLibProvider,
   titles: (string | null | undefined)[],
-): Promise<string | null> {
+): Promise<string> {
   const queries = [...new Set(titles.filter(Boolean) as string[])].slice(0, MAX_QUERIES);
-  if (queries.length === 0) return null;
+  if (queries.length === 0) throw new ProviderError(`${name}: no title to search by.`);
+
+  let lastFailure = `${name}: no search was attempted.`;
 
   for (const query of queries) {
-    const page = await client(name).search(query).catch(() => null);
-    if (!page?.results?.length) continue;
+    let page: Awaited<ReturnType<ReturnType<typeof client>['search']>> | null = null;
+    try {
+      page = await client(name).search(query);
+    } catch (err) {
+      lastFailure = `${name}: search for "${query}" threw — ${detail(err)}`;
+      continue;
+    }
 
-    const id = bestMatch(
+    const report = matchWithReport(
       queries,
-      page.results.map((r) => ({ id: String(r.id ?? ''), names: names(r.title) })),
+      (page.results ?? []).map((r) => ({ id: String(r.id ?? ''), names: names(r.title) })),
     );
 
-    if (id) return id;
+    if (report.id) return report.id;
+    lastFailure = describeMatchFailure(report, name);
   }
 
-  return null;
+  throw new ProviderError(lastFailure, lastFailure);
 }
 
 export async function libEpisodes(

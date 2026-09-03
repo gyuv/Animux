@@ -3,7 +3,7 @@ import {
   ProviderError,
   type ProviderEpisode, type ProviderEpisodeSources,
 } from './types';
-import { bestMatch, MAX_QUERIES } from './matching';
+import { matchWithReport, describeMatchFailure, MAX_QUERIES } from './matching';
 
 /**
  * HiAnime, scraped in-process.
@@ -39,26 +39,37 @@ function wrap(err: unknown, fallback: string): ProviderError {
 }
 
 /** Resolve a HiAnime id from the names AniList knows a show by. */
-export async function hianimeFindId(titles: (string | null | undefined)[]): Promise<string | null> {
+export async function hianimeFindId(titles: (string | null | undefined)[]): Promise<string> {
   const queries = [...new Set(titles.filter(Boolean) as string[])].slice(0, MAX_QUERIES);
-  if (queries.length === 0) return null;
+  if (queries.length === 0) throw new ProviderError('HiAnime: no title to search by.');
+
+  let lastFailure = 'HiAnime: no search was attempted.';
 
   for (const query of queries) {
-    const result = await scraper().search(query).catch(() => null);
-    if (!result) continue;
+    let result: Awaited<ReturnType<HiAnime.Scraper['search']>> | null = null;
+    try {
+      result = await scraper().search(query);
+    } catch (err) {
+      // A throw here is the host refusing or having moved — worth saying so,
+      // because it needs a completely different fix from a scoring miss.
+      lastFailure = `HiAnime: search for "${query}" threw — ${detailOf(err)}`;
+      continue;
+    }
 
-    const id = bestMatch(
+    const report = matchWithReport(
       queries,
-      (result.animes ?? []).map((a) => ({
-        id: a.id ?? '',
-        names: [a.name, a.jname],
-      })),
+      (result.animes ?? []).map((a) => ({ id: a.id ?? '', names: [a.name, a.jname] })),
     );
 
-    if (id) return id;
+    if (report.id) return report.id;
+    lastFailure = describeMatchFailure(report, 'HiAnime');
   }
 
-  return null;
+  throw new ProviderError(lastFailure, lastFailure);
+}
+
+function detailOf(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
 }
 
 export async function hianimeEpisodes(animeId: string): Promise<ProviderEpisode[]> {
