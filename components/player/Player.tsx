@@ -15,6 +15,7 @@ import { PlayerMenu, type QualityLevel } from './PlayerMenu';
 import { NextUpCard } from './NextUpCard';
 import { ShortcutSheet } from './ShortcutSheet';
 import { SetupScreen } from './SetupScreen';
+import { PlaybackFailure } from './PlaybackFailure';
 
 interface Props {
   animeId: string;
@@ -49,6 +50,8 @@ export function Player({
   const [payload, setPayload] = useState<StreamPayload | null>(null);
   const [source, setSource] = useState<StreamSource | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The API's per-provider breakdown, which the generic message hides.
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [buffering, setBuffering] = useState(true);
 
@@ -74,6 +77,7 @@ export function Player({
     let live = true;
     setPayload(null);
     setError(null);
+    setErrorDetail(null);
     setNeedsSetup(false);
     setBuffering(true);
     setPosition(startAt);
@@ -83,7 +87,12 @@ export function Player({
       .then(async (r) => {
         const body = await r.json();
         if (body?.needsSetup) throw new SetupRequired();
-        if (!r.ok) throw new Error(body.error ?? 'That episode would not load.');
+        if (!r.ok) {
+          // Carry the breakdown through the throw; it is the only thing that
+          // says which of the four failures this was.
+          setErrorDetail(typeof body?.detail === 'string' ? body.detail : null);
+          throw new Error(body.error ?? 'That episode would not load.');
+        }
         return body as StreamPayload;
       })
       .then((data) => {
@@ -362,16 +371,13 @@ export function Player({
 
   if (error) {
     return (
-      <div className="grid min-h-svh place-items-center bg-ink-900 px-6 text-center">
-        <div className="max-w-[38ch]">
-          <h1 className="font-display text-title font-bold text-paper">This episode would not play</h1>
-          <p className="mt-2 text-body text-haze">{error}</p>
-          <div className="mt-6 flex justify-center gap-3">
-            <button onClick={() => location.reload()} className="key-primary">Reload</button>
-            <Link href={`/title/${animeId}`} className="key-ghost">Back to episodes</Link>
-          </div>
-        </div>
-      </div>
+      <PlaybackFailure
+        animeId={animeId}
+        title={title}
+        episode={episode}
+        message={error}
+        detail={errorDetail}
+      />
     );
   }
 
