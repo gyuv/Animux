@@ -33,6 +33,13 @@ export function hianimeConfigured(): boolean {
   return process.env.HIANIME_ENABLED !== '0';
 }
 
+/**
+ * Which mirror the package is pointed at. It reads this once at import, so it
+ * cannot be changed at runtime — but naming it in a failure message is the
+ * difference between "something went wrong" and a fix the reader can apply.
+ */
+const DOMAIN = process.env.ANIWATCH_DOMAIN || 'aniwatchtv.to';
+
 function wrap(err: unknown, fallback: string): ProviderError {
   const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   return new ProviderError(fallback, detail);
@@ -50,10 +57,26 @@ export async function hianimeFindId(titles: (string | null | undefined)[]): Prom
     try {
       result = await scraper().search(query);
     } catch (err) {
-      // A throw here is the host refusing or having moved — worth saying so,
-      // because it needs a completely different fix from a scoring miss.
-      lastFailure = `HiAnime: search for "${query}" threw — ${detailOf(err)}`;
-      continue;
+      /*
+       * A throw here is the host, not the title.
+       *
+       * The package wraps an Axios failure carrying no response as the bare
+       * message "Something went wrong" — which is what a connect timeout looks
+       * like, since its client sets `timeout: 8000` and a timeout has no
+       * response to read a status from. So this is the host being unreachable
+       * from wherever this is deployed, and retrying it with a different
+       * spelling of the title cannot help: it spends another eight seconds,
+       * and three titles is twenty-four — most of a serverless invocation,
+       * leaving nothing for the providers queued behind this one. Stop at the
+       * first throw and let them have the time.
+       */
+      throw new ProviderError(
+        `HiAnime (${DOMAIN}) did not answer.`,
+        `HiAnime: search for "${query}" threw — ${detailOf(err)}. Unreachable from this ` +
+          `deployment; a bare "Something went wrong" is its 8s connect timeout, not a ` +
+          `rejection. Point ANIWATCH_DOMAIN at a reachable mirror, or set ` +
+          `HIANIME_ENABLED=0 to skip it.`,
+      );
     }
 
     const report = matchWithReport(

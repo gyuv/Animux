@@ -63,6 +63,8 @@ export const dynamic = 'force-dynamic';
  */
 const PROVIDER_MS = 9_000;
 const BUDGET_MS = 26_000;
+/** AniList's own round trip, which several providers need before they start. */
+const METADATA_MS = 6_000;
 /** Short: these URLs are signed upstream and expire, so a long cache serves 403s. */
 const CACHE_TTL = 240;
 
@@ -340,6 +342,24 @@ export async function GET(request: Request) {
   if (consumetConfigured() || aniwatchConfigured() || hianimeConfigured()) {
     const failures: string[] = [];
 
+    /**
+     * The names to search these catalogues by.
+     *
+     * Every provider that has no AniList mapping needs the same answer, and
+     * AniList is a real network round trip. Asking once per provider charged
+     * the budget three times for one lookup, which is most of why the last
+     * provider in the chain used to be handed a second and a half.
+     */
+    let titles: Promise<(string | null | undefined)[]> | null = null;
+    const searchTitles = () => {
+      titles ??= getAnime(anilistId).then(({ anime }) => [
+        anime.title.romaji,
+        anime.title.english,
+        ...(anime.synonyms ?? []).slice(0, 3),
+      ]);
+      return withTimeout(titles, budget.slice(METADATA_MS), 'anilist');
+    };
+
     const order: ConsumetProvider[] = requested === 'zoro' || requested === 'gogoanime'
       ? [requested]
       : CONSUMET_PROVIDERS;
@@ -366,12 +386,8 @@ export async function GET(request: Request) {
     if (aniwatchConfigured()) {
       try {
         // Aniwatch has no AniList mapping, so it needs the title to search by.
-        const { anime } = await getAnime(anilistId);
         const payload = await withTimeout(
-          fromAniwatch(
-            [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
-            episode,
-          ),
+          fromAniwatch(await searchTitles(), episode),
           budget.slice(PROVIDER_MS),
           'aniwatch',
         );
@@ -386,13 +402,14 @@ export async function GET(request: Request) {
 
     // In-process scraper last: it needs no deployment, so it is the safety net
     // under whatever services you did configure rather than a competitor to them.
-    if (hianimeConfigured()) {
+    if (hianimeConfigured() && !budget.spent()) {
       try {
-        const { anime } = await getAnime(anilistId);
-        const payload = await fromHiAnime(
-          [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)],
-          episode,
+        const payload = await withTimeout(
+          fromHiAnime(await searchTitles(), episode),
+          budget.slice(PROVIDER_MS),
+          'hianime',
         );
+        cacheWrite(cacheKey, { ...payload, source: 'hianime' }, CACHE_TTL);
         return NextResponse.json({ ...payload, source: 'hianime' }, {
           headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': 'hianime' },
         });
@@ -405,15 +422,15 @@ export async function GET(request: Request) {
     // different catalogue rather than a different route to the same one, so a
     // title missing from HiAnime can still resolve here.
     if (hianimeConfigured()) {
-      let titles: (string | null | undefined)[] = [];
+      let names: (string | null | undefined)[] = [];
       try {
-        const { anime } = await getAnime(anilistId);
-        titles = [anime.title.romaji, anime.title.english, ...(anime.synonyms ?? []).slice(0, 3)];
-      } catch {
+        names = await searchTitles();
+      } catch (err) {
         /* Without titles there is nothing to search by; fall through to 404. */
+        failures.push(`anilist: ${describe(err)}`);
       }
 
-      if (titles.length > 0) {
+      if (names.length > 0) {
         for (const name of libProviderOrder()) {
           if (budget.spent()) {
             failures.push(`${name}: skipped, request budget spent`);
@@ -421,7 +438,7 @@ export async function GET(request: Request) {
           }
           try {
             const payload = await withTimeout(
-              fromLibProvider(name, titles, episode),
+              fromLibProvider(name, names, episode),
               budget.slice(PROVIDER_MS),
               name,
             );

@@ -195,6 +195,14 @@ Referer-locked, so anything claiming this works client-side describes
 something that loads a manifest and then stalls. Streams still go out through
 the signed proxy, which is what attaches the header and rewrites the manifest.
 
+If it reports that HiAnime "did not answer", that is a network-level failure
+from wherever the app is deployed, not a matching problem — the package's
+client gives up after eight seconds and reports a bare "Something went wrong",
+because a connect timeout carries no HTTP status to report instead. The mirror
+it uses is `ANIWATCH_DOMAIN` (default `aniwatchtv.to`); point that at one your
+host can reach, or set `HIANIME_ENABLED=0` and let the providers behind it
+take the request. It is read once at startup, so changing it needs a redeploy.
+
 Like option 2, this scrapes a site holding no licence to what it serves.
 
 **4. Nothing available.** The player shows a setup screen naming what is missing, with a
