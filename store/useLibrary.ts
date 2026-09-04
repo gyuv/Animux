@@ -37,6 +37,8 @@ export interface Preferences {
   autoPlayNext: boolean;
   /** Preferred spoken language when a title ships several dubs. */
   audioLang: string;
+  /** Which AniHeist server to ask, or 'auto' to sweep them in order. */
+  server: string;
   /** Carried across episodes so the player never starts loud. */
   volume: number;
   muted: boolean;
@@ -79,6 +81,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   autoSkipIntro: true,
   autoPlayNext: true,
   audioLang: 'ja',
+  server: 'auto',
   volume: 1,
   muted: false,
   playbackRate: 1,
@@ -193,16 +196,18 @@ export const useLibrary = create<LibraryState>()(
     }),
     {
       name: 'animux.library',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ progress: s.progress, saved: s.saved, preferences: s.preferences }),
-      // A stored v2 payload is missing the preferences added since; merging
-      // over the defaults means an upgrade never lands a viewer on
-      // `preferences.volume === undefined` and a muted player.
+      // A stored payload from an older version is missing the preferences
+      // added since; merging over the defaults means an upgrade never lands a
+      // viewer on `preferences.volume === undefined` and a muted player, or
+      // on `server === undefined` and a stream request for a server that is
+      // not in the list.
       migrate: (persisted, version) => {
         const state = persisted as Partial<LibraryState> | undefined;
         if (!state) return persisted as LibraryState;
-        if (version < 3) {
+        if (version < 4) {
           return {
             ...state,
             preferences: { ...DEFAULT_PREFERENCES, ...(state.preferences ?? {}) },

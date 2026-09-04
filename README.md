@@ -187,6 +187,31 @@ Be clear-eyed about what this option is: both projects scrape sites that hold
 no licence to the content. Neither is hosted for you, and neither runs unless
 you set its variable.
 
+**2b. AniHeist.** [`ZenHamza/AniHeist-api`](https://github.com/ZenHamza/AniHeist-api),
+a separate Python service, tried ahead of everything else. The reason for the
+ordering is not politeness: it is the only source here handed the AniList id
+itself. Every other one has to search a catalogue by title and score the
+results, and that step is both slow and the one that quietly returns season
+one when you asked for season three. This path does not have it.
+
+Set `ANIHEIST_API_URL` to your own deployment (the repo ships a Dockerfile and
+a compose file); it otherwise uses the public instance, and `ANIHEIST_ENABLED=0`
+turns it off. `/api/stream/health` reports whether it is answering.
+
+Servers are selectable in the player under **Playback → Server** — Auto, Pewe,
+Ally, Moo — and the choice persists across episodes. Two details matter:
+
+- Every request pins `source=miruro`. Left to itself the API prefers a backend
+  that answers with `format: "embed"`, which is a player *page* for an iframe,
+  not a video URL; handing that to hls.js gets a manifest error or a spinner
+  that never resolves. Any embed that does come back is refused with that
+  reason rather than passed on as if playable.
+- Picking a server explicitly means that server only. If Pewe fails, the
+  request fails and says Pewe failed, rather than quietly serving Ally under
+  Pewe's name. Only **Auto** sweeps the list. Pewe resolves through anidb.app
+  and its own documentation marks it intermittent, which is exactly why it is
+  worth being able to name it.
+
 **3. In-process scraping.** The `aniwatch` package scrapes HiAnime from inside
 this app's own API routes, so there is nothing separate to deploy. On by
 default; `HIANIME_ENABLED=0` opts out. It runs on the server, not in the

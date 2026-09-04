@@ -20,21 +20,30 @@ import {
   libProviderOrder, libFindId, libEpisodes, libSources,
   type ConsumetLibProvider,
 } from '@/lib/providers/consumet-lib';
+import {
+  aniheistConfigured, aniheistSources, aniheistServer,
+  ANIHEIST_SERVERS, type AniheistServer,
+} from '@/lib/providers/aniheist';
 
 /**
  * Stream resolution.
  *
- * Four ways to get a payload, tried in order:
+ * Five ways to get a payload, tried in order:
  *
  *   1. STREAM_PROVIDER_URL — your own backend, returning the shape below
  *      verbatim. Nothing here touches it beyond routing captions.
- *   2. CONSUMET_API_URL / ANIWATCH_API_URL — separate scraper services, if
+ *   2. ANIHEIST_API_URL — the AniHeist service. First of the scrapers, because
+ *      it is the only one taking the AniList id directly: no catalogue search,
+ *      so none of the wrong-season failures the title-matching sources have.
+ *   3. CONSUMET_API_URL / ANIWATCH_API_URL — separate scraper services, if
  *      you run them, mapped onto that same shape by `lib/providers/`.
- *   3. The `aniwatch` package, scraping HiAnime inside this process. On by
+ *   4. The `aniwatch` package, scraping HiAnime inside this process. On by
  *      default because it needs nothing deployed; HIANIME_ENABLED=0 opts out.
- *   4. Nothing available — a setup screen, or STREAM_DEMO=1 for a test clip.
+ *   5. Nothing available — a setup screen, or STREAM_DEMO=1 for a test clip.
  *
- *   GET /api/stream?id=<anilistId>&ep=<n>[&provider=gogoanime|zoro|aniwatch]
+ *   GET /api/stream?id=<anilistId>&ep=<n>
+ *       [&provider=gogoanime|zoro|aniwatch]   which resolver
+ *       [&server=auto|pewe|ally|moo]          which upstream within AniHeist
  *   {
  *     sources:   [{ id, label, url, type: 'hls' | 'mp4', audioLang, kind, quality? }]
  *     subtitles: [{ lang, label, url, default? }]
@@ -214,6 +223,41 @@ function merge(payloads: StreamPayload[]): StreamPayload {
 
 /* ------------------------------------------------------------- resolvers */
 
+/**
+ * AniHeist, which takes the AniList id straight through — so unlike every
+ * other resolver here there is no catalogue search and no title scoring, and
+ * therefore no way to confidently return the wrong season.
+ *
+ * Sub and dub are separate requests; a title with no dub is the normal case,
+ * not a failure, so one of the two coming back empty is fine and only both
+ * failing is an error.
+ */
+async function fromAniheist(
+  anilistId: number,
+  episode: number,
+  server: AniheistServer,
+  timeoutMs: number,
+): Promise<StreamPayload> {
+  let subFailure: unknown = null;
+  const [sub, dub] = await Promise.all([
+    aniheistSources(anilistId, episode, { server, timeoutMs })
+      .catch((err) => { subFailure = err; return null; }),
+    aniheistSources(anilistId, episode, { server, dub: true, timeoutMs }).catch(() => null),
+  ]);
+
+  // A dub-only title is rare but real, so the sub failing is only fatal when
+  // the dub failed too — and then the sub's reason is the one worth keeping,
+  // since a missing dub explains nothing.
+  if (!sub && !dub) throw subFailure ?? new ProviderError('AniHeist returned no source.');
+
+  const name = `AniHeist · ${server.label}`;
+  const payloads: StreamPayload[] = [];
+  if (sub) payloads.push(toPayload(sub, `${name} (sub)`, 'sub', 'ja'));
+  if (dub) payloads.push(toPayload(dub, `${name} (dub)`, 'dub', 'en'));
+
+  return merge(payloads);
+}
+
 async function fromConsumet(
   anilistId: number,
   episode: number,
@@ -311,6 +355,10 @@ export async function GET(request: Request) {
   const id = searchParams.get('id');
   const ep = searchParams.get('ep');
   const requested = searchParams.get('provider');
+  // Which AniHeist server the viewer picked, if any. Named separately from
+  // `provider` because it selects an upstream *within* AniHeist, not one of
+  // the resolvers below it.
+  const requestedServer = searchParams.get('server');
 
   if (!id || !ep) {
     return NextResponse.json({ error: 'Include both an id and an ep parameter.' }, { status: 400 });
@@ -328,7 +376,7 @@ export async function GET(request: Request) {
     return fromOwnBackend(provider, id, ep);
   }
 
-  const cacheKey = `stream:${anilistId}:${episode}:${requested ?? 'auto'}`;
+  const cacheKey = `stream:${anilistId}:${episode}:${requested ?? 'auto'}:${requestedServer ?? 'auto'}`;
   const cached = cacheRead<StreamPayload>(cacheKey);
   if (cached?.fresh) {
     return NextResponse.json(cached.value, {
@@ -339,8 +387,60 @@ export async function GET(request: Request) {
   const budget = new Budget(BUDGET_MS);
 
   /* 2. The scraper APIs. */
-  if (consumetConfigured() || aniwatchConfigured() || hianimeConfigured()) {
+  if (consumetConfigured() || aniwatchConfigured() || hianimeConfigured() || aniheistConfigured()) {
     const failures: string[] = [];
+
+    /*
+     * AniHeist first, and not as a favour: it is the only resolver here that
+     * is handed the AniList id itself. Everything below has to search a
+     * catalogue by title and score the results, which is both slow and the
+     * step that quietly returns the wrong season. Skipping that entirely is
+     * worth more than the order of anything after it.
+     *
+     * A viewer who explicitly picked a server gets that server and no other.
+     * Falling through to a different one would leave the picker showing
+     * "Pewe" over a stream that came from somewhere else, which is worse than
+     * an honest failure — so the automatic sweep only runs for "Auto".
+     */
+    if (aniheistConfigured() && !budget.spent()) {
+      const chosen = aniheistServer(requestedServer);
+      const servers = chosen && chosen.id !== 'auto'
+        ? [chosen]
+        : ANIHEIST_SERVERS.filter((srv) => srv.id !== 'auto');
+
+      for (const server of servers) {
+        if (budget.spent()) {
+          failures.push(`aniheist/${server.id}: skipped, request budget spent`);
+          break;
+        }
+        const slice = budget.slice(PROVIDER_MS);
+        try {
+          const payload = await withTimeout(
+            fromAniheist(anilistId, episode, server, slice),
+            slice,
+            `aniheist/${server.id}`,
+          );
+          cacheWrite(cacheKey, { ...payload, source: 'aniheist' }, CACHE_TTL);
+          return NextResponse.json({ ...payload, source: 'aniheist' }, {
+            headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': `aniheist:${server.id}` },
+          });
+        } catch (err) {
+          failures.push(`aniheist/${server.id}: ${describe(err)}`);
+        }
+      }
+
+      // An explicitly chosen server is a decision, not a hint: stop here and
+      // say it failed rather than serving something else under its name.
+      if (chosen && chosen.id !== 'auto') {
+        return NextResponse.json(
+          {
+            error: `The ${chosen.label} server could not play that episode.`,
+            detail: failures.join(' | '),
+          },
+          { status: 404 },
+        );
+      }
+    }
 
     /**
      * The names to search these catalogues by.

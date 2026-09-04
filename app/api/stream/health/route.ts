@@ -54,24 +54,43 @@ async function probe(raw: string | undefined, path: string): Promise<Probe> {
 export async function GET() {
   // Frieren, id 154587 — a title every provider carries, so a miss here is
   // about the provider rather than about an obscure show.
-  const [own, consumet, aniwatch] = await Promise.all([
+  const aniheistOn = process.env.ANIHEIST_ENABLED !== '0';
+
+  const [own, consumet, aniwatch, aniheist] = await Promise.all([
     probe(process.env.STREAM_PROVIDER_URL, '?id=154587&ep=1'),
     probe(process.env.CONSUMET_API_URL, '/meta/anilist/info/154587?provider=gogoanime'),
     probe(process.env.ANIWATCH_API_URL, '/api/v2/hianime/search?q=frieren'),
+    // Unlike the others this has a default, so it is probed whenever it is on
+    // rather than only when a URL was set.
+    aniheistOn
+      ? probe(process.env.ANIHEIST_API_URL || 'https://api.aniheist.com', '/api/health')
+      : Promise.resolve({ configured: false, url: null, reachable: null, status: null, error: null }),
   ]);
 
   const hianimeOn = process.env.HIANIME_ENABLED !== '0';
   const active = own.configured
     ? 'own'
-    : consumet.configured
-      ? 'consumet'
-      : aniwatch.configured
-        ? 'aniwatch'
-        : hianimeOn
-          ? 'hianime'
-          : 'demo';
+    : aniheist.reachable
+      ? 'aniheist'
+      : consumet.configured
+        ? 'consumet'
+        : aniwatch.configured
+          ? 'aniwatch'
+          : hianimeOn
+            ? 'hianime'
+            : 'demo';
 
   const verdict = (() => {
+    if (active === 'aniheist') {
+      return `AniHeist is answering at ${aniheist.url}, and is tried first — it maps the AniList ` +
+        'id directly, so no title matching is involved. Pick a server in the player under ' +
+        'Playback → Server.';
+    }
+    if (aniheistOn && aniheist.reachable === false) {
+      return `AniHeist at ${aniheist.url} is not answering (${aniheist.error}). Deploy the ` +
+        'service from github.com/ZenHamza/AniHeist-api and set ANIHEIST_API_URL to it, or set ' +
+        'ANIHEIST_ENABLED=0 so it stops taking a slice of every request.';
+    }
     if (active === 'hianime') {
       return 'No service is configured, so episodes resolve through the in-process HiAnime ' +
         'scraper. Nothing to deploy; set HIANIME_ENABLED=0 to turn it off.';
@@ -105,6 +124,7 @@ export async function GET() {
       warnings,
       providers: {
         own,
+        aniheist,
         consumet,
         aniwatch,
         hianime: { configured: hianimeOn, url: 'in-process (aniwatch package)', reachable: null, status: null, error: null },

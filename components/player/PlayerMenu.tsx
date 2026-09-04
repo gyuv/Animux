@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import type { StreamPayload, StreamSource } from '@/app/api/stream/route';
 import type { Preferences } from '@/store/useLibrary';
+import { ANIHEIST_SERVERS } from '@/lib/providers/aniheist-servers';
 
 /**
  * One sheet for every playback decision, in tabs rather than nested menus.
@@ -31,6 +32,7 @@ interface Props {
   levels: QualityLevel[];
   activeLevel: number;
   onPickSource: (s: StreamSource) => void;
+  onPickServer: (id: string) => void;
   onPickSubtitle: (lang: string) => void;
   onPickLevel: (index: number) => void;
   onSetPreference: (next: Partial<Preferences>) => void;
@@ -45,11 +47,11 @@ const SIZES: { value: Preferences['subtitleSize']; label: string }[] = [
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-type Tab = 'audio' | 'quality' | 'playback';
+type Tab = 'audio' | 'server' | 'quality' | 'playback';
 
 export function PlayerMenu({
   payload, current, preferences, levels, activeLevel,
-  onPickSource, onPickSubtitle, onPickLevel, onSetPreference, onClose,
+  onPickSource, onPickServer, onPickSubtitle, onPickLevel, onSetPreference, onClose,
 }: Props) {
   const [tab, setTab] = useState<Tab>('audio');
 
@@ -58,6 +60,7 @@ export function PlayerMenu({
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'audio', label: 'Audio & subtitles' },
+    { id: 'server', label: 'Server' },
     { id: 'quality', label: 'Quality' },
     { id: 'playback', label: 'Playback' },
   ];
@@ -165,6 +168,25 @@ export function PlayerMenu({
                 />
               </Section>
             </>
+          )}
+
+          {tab === 'server' && (
+            <Section label="Streaming server">
+              {ANIHEIST_SERVERS.map((srv) => (
+                <Row
+                  key={srv.id}
+                  selected={preferences.server === srv.id}
+                  onClick={() => onPickServer(srv.id)}
+                  title={srv.label}
+                  detail={srv.note}
+                />
+              ))}
+              <p className="px-1 pt-2 text-meta text-haze">
+                Servers are different routes to the same episode. If one will not
+                play, another often will — picking one here keeps it for the next
+                episode too.
+              </p>
+            </Section>
           )}
 
           {tab === 'quality' && (

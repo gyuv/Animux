@@ -83,7 +83,7 @@ export function Player({
     setPosition(startAt);
     setLevels([]);
 
-    fetch(`/api/stream?id=${animeId}&ep=${episode}`)
+    fetch(`/api/stream?id=${animeId}&ep=${episode}&server=${encodeURIComponent(preferences.server)}`)
       .then(async (r) => {
         const body = await r.json();
         if (body?.needsSetup) throw new SetupRequired();
@@ -113,8 +113,11 @@ export function Player({
       });
 
     return () => { live = false; };
+    // Deliberately not depending on the whole preferences object: a volume
+    // nudge must not refetch the episode. The server is the one preference
+    // that changes which stream is fetched, so it is listed on its own.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animeId, episode]);
+  }, [animeId, episode, preferences.server]);
 
   /* --------------------------------------------------------------- attach */
 
@@ -588,6 +591,13 @@ export function Player({
           onPickSource={(s) => {
             setSource(s);
             setPreferences({ audio: s.kind, audioLang: s.audioLang });
+          }}
+          onPickServer={(server) => {
+            // The fetch effect watches this, so setting it is the reload —
+            // and closing the sheet means the viewer sees the spinner rather
+            // than a menu sitting over a player that is quietly re-resolving.
+            setPreferences({ server });
+            setMenu(false);
           }}
           onPickSubtitle={(lang) => {
             setPreferences({ subtitleLang: lang });
