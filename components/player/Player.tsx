@@ -16,6 +16,7 @@ import { NextUpCard } from './NextUpCard';
 import { ShortcutSheet } from './ShortcutSheet';
 import { SetupScreen } from './SetupScreen';
 import { PlaybackFailure } from './PlaybackFailure';
+import { EmbedStage } from './EmbedStage';
 
 interface Props {
   animeId: string;
@@ -123,7 +124,9 @@ export function Player({
 
   useEffect(() => {
     const el = video.current;
-    if (!el || !source) return;
+    // An embed renders its own player in a frame, so there is no media element
+    // here to attach to — and handing hls.js an HTML page is a manifest error.
+    if (!el || !source || source.type === 'embed') return;
 
     hls.current?.destroy();
     hls.current = null;
@@ -380,6 +383,25 @@ export function Player({
         episode={episode}
         message={error}
         detail={errorDetail}
+      />
+    );
+  }
+
+  /*
+   * An external player gets its own screen rather than the app's chrome.
+   * Drawing this player's controls over a frame they cannot reach would look
+   * like the player is broken; saying what is unavailable is honest and
+   * leaves the one control that still works — changing server.
+   */
+  if (source?.type === 'embed') {
+    return (
+      <EmbedStage
+        animeId={animeId}
+        title={title}
+        episode={episode}
+        src={source.url}
+        currentServer={preferences.server}
+        onPickServer={(server) => setPreferences({ server })}
       />
     );
   }
