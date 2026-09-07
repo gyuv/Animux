@@ -1,6 +1,7 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { getAnime, displayTitle, AniListError } from '@/services/anilist';
+import { malToAnilist } from '@/services/jikan';
 import { stripHtml } from '@/lib/format';
 import { TitleHero } from '@/components/title/TitleHero';
 import { TitleTabs } from '@/components/title/TitleTabs';
@@ -46,6 +47,20 @@ export default async function TitlePage({ params }: { params: Promise<{ id: stri
   const { id: rawId } = await params;
   const id = Number(rawId);
   if (!Number.isFinite(id)) notFound();
+
+  /*
+   * A negative id is a MyAnimeList id, which only the backup listing produces
+   * (see services/jikan.ts). The rest of the app — streaming above all — is
+   * built on AniList ids, so it is mapped here and the viewer is sent to the
+   * real address. Doing it on open rather than per card is what keeps the
+   * fallback listing cheap: one lookup per title someone actually wants,
+   * instead of one per poster on the page.
+   */
+  if (id < 0) {
+    const anilistId = await malToAnilist(-id);
+    if (!anilistId) notFound();
+    redirect(`/title/${anilistId}`);
+  }
 
   let anime;
   let notice: string | null = null;

@@ -18,6 +18,7 @@
 
 import { schedule, backOff, isCoolingDown, cooldownRemaining } from '@/lib/catalogue/limiter';
 import { read, write, coalesce } from '@/lib/catalogue/cache';
+import { jikanHome } from './jikan';
 
 /** Overridable so the app can be pointed at a mirror, or at a fixture server
  *  during development when AniList's public API is unreachable. */
@@ -330,7 +331,19 @@ async function raw<T>(query: string, variables: Record<string, unknown>): Promis
           'User-Agent': USER_AGENT,
         },
         body: JSON.stringify({ query, variables }),
-        cache: 'no-store',
+        /*
+         * Not `no-store`. That one option was opting every page that touches
+         * the catalogue — home, browse, title, schedule — out of static
+         * rendering, so each visit paid a cold serverless start plus a round
+         * trip to AniList before a single byte reached the viewer. With it
+         * gone those pages prerender and revalidate on their own schedule,
+         * and the common case is HTML served straight from the CDN.
+         *
+         * Freshness is unaffected: each page sets its own `revalidate`, and
+         * the in-process cache and token bucket below still gate what
+         * actually leaves the process.
+         */
+        next: { revalidate: 1800 },
         signal: AbortSignal.timeout(15_000),
       }),
     );
@@ -587,12 +600,35 @@ export async function getHome(): Promise<{ shelves: HomeShelves; meta: Catalogue
   const now = currentSeason();
   const next = nextSeason();
 
-  const { data, meta } = await cached<Record<keyof HomeShelves, { media: Anime[] }>>(
-    `home:${now.season}${now.year}`,
-    1800,
-    HOME_QUERY,
-    { season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
-  );
+  let data: Record<keyof HomeShelves, { media: Anime[] }>;
+  let meta: CatalogueMeta;
+
+  try {
+    ({ data, meta } = await cached<Record<keyof HomeShelves, { media: Anime[] }>>(
+      `home:${now.season}${now.year}`,
+      1800,
+      HOME_QUERY,
+      { season: now.season, year: now.year, nextSeason: next.season, nextYear: next.year },
+    ));
+  } catch (error) {
+    /*
+     * AniList is unavailable and there is no cache to fall back on — the case
+     * that used to render "The catalogue is not answering" over an empty page.
+     * MyAnimeList is an entirely separate service with its own address and its
+     * own limits, so the one thing that will not take it down is whatever just
+     * took AniList down. A listing from there is worth far more than a notice.
+     */
+    const shelves = await jikanHome();
+    const why = error instanceof AniListError ? error.viewerMessage : 'The catalogue is unavailable.';
+    return {
+      shelves,
+      meta: {
+        notice: `${why} Showing MyAnimeList's listing instead — titles open normally.`,
+        stale: true,
+        ageSeconds: 0,
+      },
+    };
+  }
 
   return {
     shelves: {

@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { getHome, currentSeason, nextSeason, AniListError, displayTitle } from '@/services/anilist';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { HeroCarousel } from '@/components/home/HeroCarousel';
 import { Rail } from '@/components/media/Rail';
 import { PosterCard } from '@/components/media/PosterCard';
 import { RankCard } from '@/components/media/RankCard';
 import { ContinueShelf } from '@/components/media/ContinueShelf';
 import { AiringStrip } from '@/components/home/AiringStrip';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { CatalogueNotice } from '@/components/ui/CatalogueNotice';
 import { season as seasonLabel } from '@/lib/format';
 
@@ -25,13 +25,27 @@ export default async function HomePage() {
     shelves = home.shelves;
     notice = home.meta.notice;
   } catch (error) {
+    /*
+     * Rendered, not rethrown.
+     *
+     * Throwing here reads better at runtime — a statically rendered page
+     * caches whatever it returns, so an outage that coincides with a
+     * revalidation is served to everyone until the next one. But this page is
+     * also prerendered at build time, and a throw there fails the whole build.
+     * Trading "the site cannot deploy while AniList is down" for "the site
+     * shows a recoverable message for one revalidation window" is not a trade
+     * worth making.
+     *
+     * Reaching here at all means three things failed together: AniList, its
+     * week-long stale cache, and MyAnimeList.
+     */
     return (
       <EmptyState
         title="The catalogue is not answering"
         body={
           error instanceof AniListError
             ? error.viewerMessage
-            : 'Something went wrong loading the catalogue.'
+            : 'Both catalogue sources are unreachable right now. This usually clears on its own.'
         }
         action={<Link href="/" className="key-primary">Try again</Link>}
       />

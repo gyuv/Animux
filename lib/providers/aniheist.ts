@@ -2,10 +2,18 @@ import {
   ProviderError,
   type ProviderEpisodeSources, type ProviderSource, type ProviderSubtitle,
 } from './types';
-import { ANIHEIST_SERVERS, aniheistServer, type AniheistServer } from './aniheist-servers';
-
-export { ANIHEIST_SERVERS, aniheistServer };
-export type { AniheistServer };
+/**
+ * Just enough of a server to address this API: the public label for
+ * diagnostics and the upstream this entry routes to. The canonical list lives
+ * in ./servers, which stays free of server-only code so the player's menu can
+ * import it in the browser.
+ */
+export interface AniheistServer {
+  id: string;
+  label: string;
+  provider?: string;
+  note?: string;
+}
 
 /**
  * AniHeist — https://github.com/ZenHamza/AniHeist-api
@@ -57,7 +65,7 @@ interface StreamResponse {
 export async function aniheistSources(
   anilistId: number,
   episode: number,
-  options: { server?: AniheistServer; dub?: boolean; timeoutMs?: number } = {},
+  options: { server?: AniheistServer; dub?: boolean; timeoutMs?: number; label?: string } = {},
 ): Promise<ProviderEpisodeSources> {
   const params = new URLSearchParams({
     anime_id: String(anilistId),
@@ -68,7 +76,7 @@ export async function aniheistSources(
   if (options.dub) params.set('dub', 'true');
   if (options.server?.provider) params.set('provider', options.server.provider);
 
-  const label = options.server?.id ?? 'auto';
+  const label = options.label ?? options.server?.id ?? 'This server';
   const url = `${baseUrl()}/api/stream?${params.toString()}`;
 
   let res: Response;
@@ -81,8 +89,8 @@ export async function aniheistSources(
   } catch (err) {
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     throw new ProviderError(
-      `AniHeist (${label}) did not answer.`,
-      `AniHeist: ${detail}. Nothing at ${baseUrl()} answered — set ANIHEIST_API_URL to a ` +
+      `${label} did not answer.`,
+      `${label}: ${detail}. Nothing at ${baseUrl()} answered — set ANIHEIST_API_URL to a ` +
         'deployment you control, or ANIHEIST_ENABLED=0 to skip it.',
     );
   }
@@ -97,9 +105,9 @@ export async function aniheistSources(
     const message = body?.error?.message ?? res.statusText;
     throw new ProviderError(
       res.status === 429
-        ? 'AniHeist is rate-limiting this deployment.'
-        : `AniHeist (${label}) could not serve that episode.`,
-      `AniHeist/${label}: ${code} — ${message}`,
+        ? `${label} is rate-limiting this deployment.`
+        : `${label} could not serve that episode.`,
+      `${label}: ${code} — ${message}`,
     );
   }
 
@@ -107,8 +115,8 @@ export async function aniheistSources(
   const videoUrl = data?.video_url;
   if (!videoUrl) {
     throw new ProviderError(
-      `AniHeist (${label}) returned no source.`,
-      `AniHeist/${label}: 200 with no video_url.`,
+      `${label} returned no source.`,
+      `${label}: 200 with no video_url.`,
     );
   }
 
@@ -119,8 +127,8 @@ export async function aniheistSources(
   // is refused here with the reason rather than handed on as if playable.
   if (format === 'embed') {
     throw new ProviderError(
-      `AniHeist (${label}) offered only an embedded player.`,
-      `AniHeist/${label}: format "embed" (${data?.source ?? 'unknown'}) — an iframe page, ` +
+      `${label} offered only an embedded player.`,
+      `${label}: format "embed" (${data?.source ?? 'unknown'}) — an iframe page, ` +
         'not a video URL, so this player cannot use it.',
     );
   }

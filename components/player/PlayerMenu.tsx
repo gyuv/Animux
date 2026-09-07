@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Check, X } from 'lucide-react';
 import type { StreamPayload, StreamSource } from '@/app/api/stream/route';
 import type { Preferences } from '@/store/useLibrary';
-import { ANIHEIST_SERVERS } from '@/lib/providers/aniheist-servers';
+import { SERVERS, AUTO_SERVER } from '@/lib/providers/servers';
 
 /**
  * One sheet for every playback decision, in tabs rather than nested menus.
@@ -172,7 +172,13 @@ export function PlayerMenu({
 
           {tab === 'server' && (
             <Section label="Streaming server">
-              {ANIHEIST_SERVERS.map((srv) => (
+              <Row
+                selected={preferences.server === AUTO_SERVER.id}
+                onClick={() => onPickServer(AUTO_SERVER.id)}
+                title={AUTO_SERVER.label}
+                detail={AUTO_SERVER.note}
+              />
+              {SERVERS.map((srv) => (
                 <Row
                   key={srv.id}
                   selected={preferences.server === srv.id}

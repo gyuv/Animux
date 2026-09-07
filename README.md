@@ -187,6 +187,38 @@ Be clear-eyed about what this option is: both projects scrape sites that hold
 no licence to the content. Neither is hosted for you, and neither runs unless
 you set its variable.
 
+### Servers
+
+Viewers choose a server in the player under **Playback → Server**, and the
+choice persists across episodes:
+
+| Server | What it is | Needs deploying |
+| --- | --- | --- |
+| Auto | Tries each in turn | — |
+| Vega | Direct HLS, sub and dub, addressed by AniList id | No |
+| Orion | Direct HLS | No |
+| Lyra | Backup route, intermittent | No |
+| Draco | Progressive MP4 | No |
+| Nova | Subtitle tracks and chapter marks | Yes |
+| Atlas | Subtitle tracks and chapter marks | Yes |
+
+The names are this app's own. Which upstream sits behind each one is
+deliberately not surfaced: a backend gets swapped whenever a scraper breaks,
+and a viewer who had learned to ask for one by its upstream's name would be
+left holding a name that no longer means anything. One stable label per route
+through the stack is the contract, and the diagnostics quote the label too.
+
+Picking a server explicitly means that server only — if Lyra fails, the
+request fails and says Lyra failed, rather than quietly serving Orion under
+Lyra's name. Only **Auto** sweeps the list.
+
+Vega is the one that works with nothing deployed: it is `megaplay.buzz`
+addressed by AniList id, so it needs neither a service of your own nor a title
+search. Nova and Atlas are the two named upstreams of a self-hosted
+[ReAnime](https://github.com/walterwhite-69/ReAnime.to-API) instance, and they
+are the only servers that return real subtitle tracks and chapter marks —
+worth deploying for that alone. Set `REANIME_API_URL` to light them up.
+
 **2b. AniHeist.** [`ZenHamza/AniHeist-api`](https://github.com/ZenHamza/AniHeist-api),
 a separate Python service, tried ahead of everything else. The reason for the
 ordering is not politeness: it is the only source here handed the AniList id
@@ -237,6 +269,28 @@ every episode of every title played the same stock cartoon — indistinguishable
 from the app being broken, and the viewer only found out after sitting through
 something they had not chosen. Set `STREAM_DEMO=1` to get that clip back while
 working on the player itself.
+
+### When the catalogue refuses us
+
+AniList is a free API under a degraded rate cap, and it answers `429` when you
+go over and `403` when it has decided to block an address outright — which is
+not rare from a shared serverless IP. That used to empty the listing: the page
+said "The catalogue is not answering" and showed nothing.
+
+There are now three layers under it. A successful response is cached for a
+week and served stale with a notice. Failing that, the listing is rebuilt from
+**MyAnimeList** via [Jikan](https://jikan.moe) — a wholly separate service, so
+whatever just took AniList down is the one thing that cannot take it down too.
+
+MAL and AniList number their titles differently, and everything here — every
+streaming server above — is keyed by AniList id, so a MAL id has to be mapped
+back before it can play anything. Entries from the fallback carry a *negative*
+id, which is never a valid AniList id and so cannot be mistaken for one;
+`/title/[id]` recognises it and resolves it through
+[animeApi](https://github.com/nattadasu/animeApi) before rendering. That
+happens when someone opens a title, not when a shelf renders, which is what
+keeps the fallback cheap: one lookup per title someone actually wants rather
+than one per poster on the page.
 
 Caption files are always proxied through `/api/stream/captions` rather than
 linked directly. A `<track>` element is subject to CORS and provider CDNs
