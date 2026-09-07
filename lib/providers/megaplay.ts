@@ -124,3 +124,30 @@ export async function megaplaySources(
     referer: `${BASE}/`,
   };
 }
+
+/**
+ * The same episode as a player page, handed straight to the browser.
+ *
+ * Nothing is fetched here, and that is deliberate rather than lazy. Checking
+ * the page first would reintroduce exactly the failure this path exists to
+ * route around: the check runs from the server, and a host that refuses the
+ * server would fail the check while serving the viewer's own connection
+ * perfectly. Offering it unverified is what makes it useful — it is a server
+ * the viewer picks on purpose, and an iframe that loads an error page is a
+ * visible, recoverable outcome rather than a silent one.
+ */
+export function megaplayEmbed(
+  anilistId: number,
+  episode: number,
+  audio: 'sub' | 'dub',
+): ProviderEpisodeSources {
+  return {
+    sources: [{
+      url: `${BASE}/stream/ani/${anilistId}/${episode}/${audio}`,
+      quality: 'auto',
+      isM3U8: false,
+      isEmbed: true,
+    }],
+    subtitles: [],
+  };
+}

@@ -26,6 +26,17 @@ export interface StreamServer {
   upstream?: 'HD-1' | 'HD-2';
   /** True when this entry only works once its service has been deployed. */
   needsDeploy?: boolean;
+  /**
+   * Plays in an iframe rather than in this app's player.
+   *
+   * The trade is stark and worth stating plainly: no quality menu, no
+   * subtitle styling, no skip-intro, no resume — none of that crosses an
+   * iframe boundary. In exchange the stream is fetched by the viewer's
+   * browser rather than by the server, so these keep working when a host is
+   * refusing datacentre addresses, which is the failure every other server
+   * here shares. They are listed last and chosen on purpose.
+   */
+  embed?: boolean;
 }
 
 /**
@@ -44,6 +55,8 @@ export const SERVERS: StreamServer[] = [
   { id: 'draco', label: 'Draco', note: 'Progressive MP4',               backend: 'aniheist', provider: 'moo' },
   { id: 'nova',  label: 'Nova',  note: 'Subtitle tracks · needs setup', backend: 'reanime', upstream: 'HD-1', needsDeploy: true },
   { id: 'atlas', label: 'Atlas', note: 'Subtitle tracks · needs setup', backend: 'reanime', upstream: 'HD-2', needsDeploy: true },
+  { id: 'titan', label: 'Titan', note: 'External player · plays from your connection', backend: 'megaplay', embed: true },
+  { id: 'rigel', label: 'Rigel', note: 'External player · sub and dub',                backend: 'aniheist', embed: true },
 ];
 
 /** The entry shown first, meaning "try them in order". */

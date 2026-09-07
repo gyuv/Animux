@@ -65,14 +65,27 @@ interface StreamResponse {
 export async function aniheistSources(
   anilistId: number,
   episode: number,
-  options: { server?: AniheistServer; dub?: boolean; timeoutMs?: number; label?: string } = {},
+  options: {
+    server?: AniheistServer; dub?: boolean; timeoutMs?: number; label?: string;
+    /** 'auto' lets the API pick, which is how an embed is obtained. */
+    backend?: 'miruro' | 'auto';
+  } = {},
 ): Promise<ProviderEpisodeSources> {
   const params = new URLSearchParams({
     anime_id: String(anilistId),
     episode: String(episode),
-    // The backend that returns direct video rather than an embed page.
-    source: 'miruro',
   });
+
+  /*
+   * Which backend to ask for.
+   *
+   * 'miruro' returns direct HLS and MP4, which the app's own player can drive
+   * fully. Left to itself the API prefers a backend that answers with an
+   * embed, so the direct servers pin it. The embed servers deliberately do
+   * not: an embed is the one path fetched by the viewer's browser instead of
+   * this server, so it is worth having when a host refuses us.
+   */
+  if (options.backend !== 'auto') params.set('source', 'miruro');
   if (options.dub) params.set('dub', 'true');
   if (options.server?.provider) params.set('provider', options.server.provider);
 
@@ -122,15 +135,17 @@ export async function aniheistSources(
 
   const format = (data?.format ?? '').toLowerCase();
 
-  // An embed is a player page, not a stream. Passing it to hls.js produces a
-  // manifest error at best and a spinner that never resolves at worst, so it
-  // is refused here with the reason rather than handed on as if playable.
+  // An embed is a player page rather than a stream, so it is marked as one and
+  // carried instead of refused. It cannot be given to hls.js — that is a
+  // manifest error at best and a spinner that never resolves at worst — but
+  // the browser can load it in an iframe, and that request comes from the
+  // viewer's own connection rather than this server's. When a host is
+  // refusing datacentre addresses, this is the path that still plays.
   if (format === 'embed') {
-    throw new ProviderError(
-      `${label} offered only an embedded player.`,
-      `${label}: format "embed" (${data?.source ?? 'unknown'}) — an iframe page, ` +
-        'not a video URL, so this player cannot use it.',
-    );
+    return {
+      sources: [{ url: videoUrl, quality: 'auto', isM3U8: false, isEmbed: true }],
+      subtitles: [],
+    };
   }
 
   const isM3U8 = format === 'hls' || /\.m3u8(\?|$)/i.test(videoUrl);

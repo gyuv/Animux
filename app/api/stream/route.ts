@@ -21,7 +21,7 @@ import {
   type ConsumetLibProvider,
 } from '@/lib/providers/consumet-lib';
 import { aniheistConfigured, aniheistSources } from '@/lib/providers/aniheist';
-import { megaplayConfigured, megaplaySources } from '@/lib/providers/megaplay';
+import { megaplayConfigured, megaplaySources, megaplayEmbed } from '@/lib/providers/megaplay';
 import { reanimeConfigured, reanimeFindSlug, reanimeSources } from '@/lib/providers/reanime';
 import { SERVERS, findServer, type StreamServer } from '@/lib/providers/servers';
 
@@ -45,7 +45,7 @@ import { SERVERS, findServer, type StreamServer } from '@/lib/providers/servers'
  *       [&provider=gogoanime|zoro|aniwatch]   which resolver
  *       [&server=auto|pewe|ally|moo]          which upstream within AniHeist
  *   {
- *     sources:   [{ id, label, url, type: 'hls' | 'mp4', audioLang, kind, quality? }]
+ *     sources:   [{ id, label, url, type: 'hls' | 'mp4' | 'embed', audioLang, kind, quality? }]
  *     subtitles: [{ lang, label, url, default? }]
  *     chapters:  { intro?: [start, end], outro?: [start, end] }
  *     duration:  number | null
@@ -81,7 +81,13 @@ export interface StreamSource {
   id: string;
   label: string;
   url: string;
-  type: 'hls' | 'mp4';
+  /**
+   * 'embed' is a player page for an iframe, not a video URL. It is the only
+   * type the app's own player cannot control, and the only one that is
+   * fetched by the viewer's browser rather than by this server — which is
+   * exactly why it is worth carrying.
+   */
+  type: 'hls' | 'mp4' | 'embed';
   audioLang: string;
   kind: 'sub' | 'dub';
   /** Optional hint for fixed-rendition sources; HLS reports its own levels. */
@@ -178,8 +184,14 @@ function toPayload(
   const sources: StreamSource[] = resolved.sources.map((s, i) => ({
     id: `${label}-${s.quality}-${i}`,
     label: resolved.sources.length > 1 ? `${label} · ${s.quality}` : label,
-    url: signProxyUrl({ url: s.url, referer }, s.isM3U8 ? 'playlist' : 'segment'),
-    type: s.isM3U8 ? 'hls' : 'mp4',
+    // An embed is handed over untouched. Routing it through the signed proxy
+    // would be worse than pointless: the proxy exists to attach a Referer to
+    // media requests, and this is a page the browser must load itself — which
+    // is the entire reason it can play when the server-side routes cannot.
+    url: s.isEmbed
+      ? s.url
+      : signProxyUrl({ url: s.url, referer }, s.isM3U8 ? 'playlist' : 'segment'),
+    type: s.isEmbed ? 'embed' : s.isM3U8 ? 'hls' : 'mp4',
     audioLang,
     kind,
     quality: s.quality,
@@ -265,6 +277,20 @@ async function fromServer(
   };
 
   if (server.backend === 'megaplay') {
+    /*
+     * The embed variant resolves without a network call at all, so both audio
+     * tracks are always offered. That looks like over-promising and is not:
+     * the page is loaded by the viewer's browser, so a title with no dub
+     * shows its own message there — whereas checking from here would ask the
+     * one address these hosts are most likely to refuse, and would report the
+     * whole server broken on the strength of that refusal.
+     */
+    if (server.embed) {
+      return merge([
+        toPayload(megaplayEmbed(anilistId, episode, 'sub'), `${label} (sub)`, 'sub', 'ja'),
+        toPayload(megaplayEmbed(anilistId, episode, 'dub'), `${label} (dub)`, 'dub', 'en'),
+      ]);
+    }
     return pair((audio) => megaplaySources(anilistId, episode, audio, timeoutMs, label));
   }
 
@@ -274,6 +300,9 @@ async function fromServer(
       dub: audio === 'dub',
       timeoutMs,
       label,
+      // Letting the API choose is how an embed is obtained; the direct
+      // servers pin its video backend instead.
+      backend: server.embed ? 'auto' : 'miruro',
     }));
   }
 

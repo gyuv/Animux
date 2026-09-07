@@ -9,6 +9,18 @@ export interface ProviderSource {
   /** Provider labels are inconsistent: "1080p", "default", "auto", "backup". */
   quality: string;
   isM3U8: boolean;
+  /**
+   * A player *page* to put in an iframe, not a video URL.
+   *
+   * Worth having rather than refusing, because it is the one path where the
+   * fetch happens in the viewer's browser instead of on the server. These
+   * hosts routinely block datacentre addresses while serving a home
+   * connection perfectly, so an embed can play precisely when every
+   * server-side route has been refused. What it costs is everything the
+   * custom player does — quality switching, subtitle styling, skip-intro,
+   * resume — because none of that reaches across an iframe boundary.
+   */
+  isEmbed?: boolean;
 }
 
 export interface ProviderSubtitle {
