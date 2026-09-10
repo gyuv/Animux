@@ -7,11 +7,23 @@ import { Rail } from '@/components/media/Rail';
 import { PosterCard } from '@/components/media/PosterCard';
 import { RankCard } from '@/components/media/RankCard';
 import { ContinueShelf } from '@/components/media/ContinueShelf';
-import { AiringStrip } from '@/components/home/AiringStrip';
+import { TrendingBoard } from '@/components/home/TrendingBoard';
+import { UpNextPanel } from '@/components/home/UpNextPanel';
+import { ReleaseCard } from '@/components/media/ReleaseCard';
 import { CatalogueNotice } from '@/components/ui/CatalogueNotice';
 import { season as seasonLabel } from '@/lib/format';
 
-export const revalidate = 1800;
+/*
+ * Five minutes, not thirty.
+ *
+ * This page is prerendered at build time and then regenerated on this
+ * schedule. If the catalogue happens to be refusing us during a deploy, the
+ * build bakes the "not answering" message and every visitor sees it until the
+ * first regeneration — so the window is also the worst case for recovering
+ * from a bad deploy. Trending data is not thirty-minutes-precious, and a
+ * regeneration is one render per window, served from the CDN in between.
+ */
+export const revalidate = 300;
 
 export default async function HomePage() {
   const now = currentSeason();
@@ -63,6 +75,31 @@ export default async function HomePage() {
     .sort((a, b) => a.nextAiringEpisode!.timeUntilAiring - b.nextAiringEpisode!.timeUntilAiring)
     .slice(0, 12);
 
+  /*
+   * What is already out to watch.
+   *
+   * The catalogue publishes the *next* episode, not the last one, so the
+   * episode currently available is the one before it. Titles without that
+   * field are left out rather than guessed at: a wrong episode number on a
+   * card is worse than no number, because someone will click it expecting
+   * that episode.
+   */
+  const releases = [...trending, ...seasonal]
+    .filter((a, i, list) => list.findIndex((b) => b.id === a.id) === i)
+    .filter((a) => a.status === 'RELEASING' && (a.nextAiringEpisode?.episode ?? 0) > 1)
+    .slice(0, 20);
+
+  /*
+   * The three rankings this catalogue can actually answer. Sites in this shape
+   * usually offer Day / Week / Month — windows the data has no notion of, so
+   * those labels would be three different lies about the same list.
+   */
+  const boards = [
+    { id: 'trending', label: 'Trending', items: trending },
+    { id: 'popular', label: 'Popular', items: popular },
+    { id: 'rated', label: 'Rated', items: allTime },
+  ].filter((b) => b.items.length > 0);
+
   return (
     <>
       {featured.length > 0 && <HeroCarousel items={featured} />}
@@ -71,7 +108,44 @@ export default async function HomePage() {
 
       <ContinueShelf />
 
-      {airingSoon.length > 0 && <AiringStrip items={airingSoon} />}
+      {/*
+        * The main band: what is out now, with the rankings and the countdown
+        * alongside it. One column on a phone — the sidebar simply falls under
+        * the grid rather than becoming a second thing to scroll past.
+        */}
+      <section className="gutter-x py-6">
+        <div className="grid gap-x-8 gap-y-10 lg:grid-cols-[minmax(0,1fr)_336px]">
+          <div className="min-w-0">
+            {releases.length > 0 && (
+              <>
+                <header className="mb-4 flex items-end justify-between gap-4">
+                  <div>
+                    <h2 className="section-title">New episodes</h2>
+                    <p className="mt-0.5 text-meta text-haze">Out now, from this season's run</p>
+                  </div>
+                  <SeeAll href={`/browse?season=${now.season}&year=${now.year}&sort=TRENDING_DESC`} />
+                </header>
+
+                <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 xl:grid-cols-5">
+                  {releases.map((a, i) => (
+                    <ReleaseCard
+                      key={a.id}
+                      anime={a}
+                      episodeOut={(a.nextAiringEpisode?.episode ?? 1) - 1}
+                      priority={i < 5}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-4 lg:self-start">
+            {boards.length > 0 && <TrendingBoard boards={boards} />}
+            <UpNextPanel items={airingSoon} />
+          </aside>
+        </div>
+      </section>
 
       {allTime.length > 0 && (
         <Rail
