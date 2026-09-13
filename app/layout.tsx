@@ -58,6 +58,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-device="desktop" className={`${display.variable} ${ui.variable}`}>
       <body>
+        {/* The flowing black/grey/sky-blue field the whole app scrolls over. */}
+        <div className="app-backdrop" aria-hidden />
         <AppShell>{children}</AppShell>
       </body>
     </html>

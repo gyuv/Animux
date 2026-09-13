@@ -36,11 +36,15 @@ export function EpisodeList({
   total,
   airingNext,
   streamingEpisodes = [],
+  poster = null,
 }: {
   animeId: string;
   total: number | null;
   airingNext: number | null;
   streamingEpisodes?: StreamingEpisode[];
+  /** The show's own artwork, shown behind the episode number when a title has
+      no per-episode thumbnail — better than a black frame. */
+  poster?: string | null;
 }) {
   const [mounted, setMounted] = useState(false);
   const [range, setRange] = useState(0);
@@ -191,6 +195,7 @@ export function EpisodeList({
                 meta={metaByNumber.get(ep)}
                 entry={entryFor(ep)}
                 unaired={Boolean(airingNext && ep >= airingNext)}
+                poster={poster}
               />
             </li>
           ))}
@@ -233,8 +238,8 @@ function href(animeId: string, ep: number, entry: Entry, done: boolean) {
 }
 
 function EpisodeCard({
-  animeId, ep, meta, entry, unaired,
-}: { animeId: string; ep: number; meta: Meta; entry: Entry; unaired: boolean }) {
+  animeId, ep, meta, entry, unaired, poster,
+}: { animeId: string; ep: number; meta: Meta; entry: Entry; unaired: boolean; poster?: string | null }) {
   const pct = ratio(entry);
   const done = pct >= 92;
 
@@ -288,6 +293,24 @@ function EpisodeCard({
             className="h-full w-full object-cover transition-transform duration-500 ease-physical
                        group-hover:scale-[1.04]"
           />
+        ) : poster ? (
+          /* No per-episode thumbnail: the show's own artwork, dimmed, with the
+             episode number over it — a real image instead of a black frame. */
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={poster}
+              alt=""
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              className="h-full w-full scale-105 object-cover opacity-40 blur-[1px]
+                         transition-transform duration-500 ease-physical group-hover:scale-110"
+            />
+            <span className="absolute inset-0 grid place-items-center font-display text-title font-black text-paper/85
+                             [text-shadow:0_2px_12px_rgb(0_0_0/0.7)]">
+              {ep}
+            </span>
+          </>
         ) : (
           <span className="grid h-full w-full place-items-center font-display text-title font-black text-ink-600">
             {ep}

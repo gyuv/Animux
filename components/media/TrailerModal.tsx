@@ -26,6 +26,31 @@ export function trailerUrl(trailer?: Trailer | null): string | null {
   return null;
 }
 
+/**
+ * The same trailer as a silent, looping backdrop — no sound, no chrome, no
+ * clicks. Muted is what lets it autoplay at all: browsers block autoplay with
+ * audio, so an unmuted background video would simply sit paused. Looping keeps
+ * a short trailer from ending on a black frame; the controls, keyboard, related
+ * videos and fullscreen are all turned off so it reads as motion, not a player.
+ */
+export function backgroundTrailerUrl(trailer?: Trailer | null): string | null {
+  if (!trailer?.id) return null;
+  if (trailer.site === 'youtube') {
+    return (
+      `https://www.youtube-nocookie.com/embed/${trailer.id}` +
+      `?autoplay=1&mute=1&loop=1&playlist=${trailer.id}` +
+      `&controls=0&disablekb=1&fs=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`
+    );
+  }
+  if (trailer.site === 'dailymotion') {
+    return (
+      `https://www.dailymotion.com/embed/video/${trailer.id}` +
+      `?autoplay=1&mute=1&loop=1&controls=0&ui-logo=0&ui-start-screen-info=0`
+    );
+  }
+  return null;
+}
+
 export function TrailerModal({
   trailer,
   title,

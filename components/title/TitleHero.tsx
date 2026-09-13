@@ -2,14 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Play, Film, Star, Plus, Check, RotateCcw } from 'lucide-react';
 import type { AnimeDetail } from '@/services/anilist';
 import { displayTitle, mainStudio } from '@/services/anilist';
 import { toChromaVar } from '@/lib/chroma';
 import { airingIn, formatLabel, season, statusLabel, timecode } from '@/lib/format';
 import { useLibrary } from '@/store/useLibrary';
-import { TrailerModal, trailerUrl } from '@/components/media/TrailerModal';
+import { TrailerModal, trailerUrl, backgroundTrailerUrl } from '@/components/media/TrailerModal';
 
 /**
  * The top of a title page has one job: get the viewer into the right episode
@@ -22,6 +22,21 @@ export function TitleHero({ anime }: { anime: AnimeDetail }) {
 
   const chroma = toChromaVar(anime.coverImage.color);
   const backdrop = anime.bannerImage || anime.coverImage.extraLarge;
+  const bgTrailer = backgroundTrailerUrl(anime.trailer);
+
+  /*
+   * The trailer autoplays over the banner, muted, once the page has mounted.
+   * Held to the client so the server never ships an autoplaying iframe, and
+   * given a short delay so the banner image paints first and the video fades
+   * in over it rather than flashing an empty frame. The image stays underneath
+   * as the poster and as the fallback for titles with no trailer.
+   */
+  const [showTrailer, setShowTrailer] = useState(false);
+  useEffect(() => {
+    if (!bgTrailer) return;
+    const t = setTimeout(() => setShowTrailer(true), 600);
+    return () => clearTimeout(t);
+  }, [bgTrailer]);
   const next = airingIn(anime.nextAiringEpisode?.timeUntilAiring);
   const studio = mainStudio(anime);
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : null;
@@ -44,9 +59,25 @@ export function TitleHero({ anime }: { anime: AnimeDetail }) {
   return (
     <div style={{ ['--chroma' as string]: chroma }}>
       {/* Backdrop, held short so the artwork frames the page without owning it. */}
-      <div className="relative h-[42svh] min-h-[260px] w-full sm:h-[50svh]">
+      <div className="relative h-[42svh] min-h-[260px] w-full overflow-hidden sm:h-[50svh]">
         {backdrop && (
           <Image src={backdrop} alt="" fill priority sizes="100vw" className="object-cover object-top" />
+        )}
+        {showTrailer && bgTrailer && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden animate-fade">
+            <iframe
+              src={bgTrailer}
+              title=""
+              aria-hidden
+              tabIndex={-1}
+              /* Sized to cover: full width, and tall enough (16:9 of the
+                 viewport width) that the crop fills the short banner instead
+                 of letterboxing. Centred so the crop takes the middle. */
+              className="absolute left-1/2 top-1/2 h-[max(100%,56.25vw)] w-full -translate-x-1/2 -translate-y-1/2"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerPolicy="origin"
+            />
+          </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/55 to-ink-900/20" />
         <div

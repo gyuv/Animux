@@ -132,6 +132,34 @@ function Backdrop({ anime, active, priority }: { anime: Anime; active: boolean; 
   );
 }
 
+/* ------------------------------------------------------------------- logo */
+
+/**
+ * The TMDB title-art logo for a title, fetched after mount.
+ *
+ * Off the render path on purpose: the hero shows its text title instantly and
+ * this swaps a logo in over it only once one comes back, so an unconfigured or
+ * slow TMDB costs nothing. Null until then, and null forever for titles with
+ * no logo — the caller treats that as "use the text title".
+ */
+function useTitleLogo(id: number, format: string | null): string | null {
+  const [logo, setLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLogo(null);
+    const controller = new AbortController();
+    fetch(`/api/logo?id=${id}&format=${encodeURIComponent(format ?? '')}`, { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : { logo: null }))
+      .then((body) => setLogo(body.logo ?? null))
+      .catch(() => {
+        /* No key, no mapping, or aborted — the text title stands. */
+      });
+    return () => controller.abort();
+  }, [id, format]);
+
+  return logo;
+}
+
 /* ------------------------------------------------------------------- copy */
 
 function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
@@ -140,6 +168,7 @@ function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
   const studio = mainStudio(anime);
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : null;
   const hasTrailer = Boolean(trailerUrl(anime.trailer));
+  const logo = useTitleLogo(anime.id, anime.format);
 
   const saved = useLibrary((s) => s.saved.includes(String(anime.id)));
   const toggleSaved = useLibrary((s) => s.toggleSaved);
@@ -159,11 +188,28 @@ function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
         )}
       </div>
 
-      <h1 className="text-balance font-display text-hero font-black text-paper sm:text-mega">
+      {/* The title-art logo when TMDB has one, sat above a now-secondary text
+          title. It fades in after mount, so nothing shifts on first paint and
+          the text title carries titles that have no logo. */}
+      {logo && (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={logo}
+          alt={displayTitle(anime.title)}
+          className="mb-3 max-h-[34svh] w-auto max-w-[min(90%,520px)] animate-fade
+                     object-contain object-left drop-shadow-[0_6px_24px_rgba(0,0,0,0.6)]"
+        />
+      )}
+
+      <h1
+        className={`text-balance font-display font-black text-paper ${
+          logo ? 'text-title text-haze/80 sm:text-hero' : 'text-hero sm:text-mega'
+        }`}
+      >
         {displayTitle(anime.title)}
       </h1>
 
-      {anime.title.native && (
+      {anime.title.native && !logo && (
         <p className="mt-2 font-display text-lead font-bold text-haze/75">{anime.title.native}</p>
       )}
 

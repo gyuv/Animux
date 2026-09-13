@@ -47,11 +47,65 @@
   }
 
   body {
-    @apply bg-ink-900 text-paper font-sans antialiased;
+    /* Transparent, not bg-ink-900: the fixed flowing backdrop below sits behind
+       everything and must show through the gaps between shelves and cards. The
+       html element keeps the solid ink colour as the ultimate fallback. */
+    @apply bg-transparent text-paper font-sans antialiased;
     /* Respect notches and Android gesture bars from day one. */
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     overscroll-behavior-y: none;
+  }
+
+  /*
+   * The flowing background.
+   *
+   * Black is most of it, a soft grey drift over that, and a smaller wash of
+   * sky-blue — roughly 70 / 20 / 10 by presence. Two blurred radial blobs
+   * drift on long, offset loops so the field is never quite still, and a
+   * radial vignette pulls the edges darker so text and cards keep their
+   * contrast. Pure CSS: no asset to host, and it costs one fixed, painted
+   * layer that the whole app scrolls over.
+   */
+  .app-backdrop {
+    position: fixed;
+    inset: -20%;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #06070a;
+    background-image:
+      radial-gradient(46% 46% at 22% 30%, rgb(88 96 110 / 0.42), transparent 70%),
+      radial-gradient(40% 40% at 82% 26%, rgb(56 160 210 / 0.28), transparent 68%),
+      radial-gradient(52% 52% at 68% 82%, rgb(70 78 92 / 0.34), transparent 72%),
+      radial-gradient(60% 60% at 30% 88%, rgb(38 120 168 / 0.16), transparent 70%);
+    background-repeat: no-repeat;
+    filter: blur(70px);
+    will-change: background-position, transform;
+    animation: bg-flow 32s ease-in-out infinite alternate;
+  }
+
+  /* A separate vignette layer on top of the blobs, unblurred, so the darkened
+     edges stay crisp while the colour behind them stays soft. */
+  .app-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 20%;
+    background: radial-gradient(120% 90% at 50% 40%, transparent 42%, rgb(0 0 0 / 0.72) 100%);
+  }
+
+  @keyframes bg-flow {
+    0% {
+      background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%;
+      transform: scale(1) translate3d(0, 0, 0);
+    }
+    100% {
+      background-position: 12% 8%, 84% 12%, 78% 88%, 10% 82%;
+      transform: scale(1.08) translate3d(0, -1%, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-backdrop { animation: none; }
   }
 
   /* One focus treatment for keyboard, remote and switch control.

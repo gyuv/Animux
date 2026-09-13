@@ -128,6 +128,7 @@ export default async function TitlePage({ params }: { params: Promise<{ id: stri
               total={anime.episodes}
               airingNext={anime.nextAiringEpisode?.episode ?? null}
               streamingEpisodes={anime.streamingEpisodes ?? []}
+              poster={anime.bannerImage ?? anime.coverImage.extraLarge ?? anime.coverImage.large}
             />
           </div>
 
