@@ -5,6 +5,7 @@ import { SERVERS } from '@/lib/providers/servers';
 import { megaplayConfigured, megaplaySources } from '@/lib/providers/megaplay';
 import { reanimeConfigured, reanimeFindSlug, reanimeSources } from '@/lib/providers/reanime';
 import { aniheistConfigured, aniheistSources } from '@/lib/providers/aniheist';
+import { filmuConfigured } from '@/lib/providers/filmu';
 
 /**
  * Which servers actually work from *this* deployment.
@@ -59,7 +60,8 @@ export async function GET(request: Request) {
     const configured =
       server.backend === 'megaplay' ? megaplayConfigured()
         : server.backend === 'aniheist' ? aniheistConfigured()
-          : reanimeConfigured();
+          : server.backend === 'filmu' ? filmuConfigured()
+            : reanimeConfigured();
 
     if (!configured) {
       return {
@@ -73,6 +75,24 @@ export async function GET(request: Request) {
         error: server.needsDeploy
           ? 'Not deployed. This server needs its own service running — see the README.'
           : 'Turned off by an environment variable.',
+      };
+    }
+
+    // Embed-only: the frame is loaded by the viewer's browser, so there is no
+    // server-side fetch to probe. Saying "ok" would be a guess and saying
+    // "failed" would be a lie — report that it is available and unverifiable,
+    // which is the honest answer for a source that can play precisely when this
+    // deployment cannot reach the host.
+    if (server.backend === 'filmu') {
+      return {
+        server: server.label,
+        ok: true,
+        ms: 0,
+        sources: 1,
+        audio: [],
+        subtitles: 0,
+        configured: true,
+        error: 'External player — plays from the viewer’s browser, so it cannot be verified from here.',
       };
     }
 

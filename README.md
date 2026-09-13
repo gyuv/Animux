@@ -201,6 +201,7 @@ choice persists across episodes:
 | Draco | Progressive MP4 | No |
 | Nova | Subtitle tracks and chapter marks | Yes |
 | Atlas | Subtitle tracks and chapter marks | Yes |
+| Sirius | External iframe player, keyed by AniList id | No |
 
 The names are this app's own. Which upstream sits behind each one is
 deliberately not surfaced: a backend gets swapped whenever a scraper breaks,
@@ -218,6 +219,15 @@ search. Nova and Atlas are the two named upstreams of a self-hosted
 [ReAnime](https://github.com/walterwhite-69/ReAnime.to-API) instance, and they
 are the only servers that return real subtitle tracks and chapter marks —
 worth deploying for that alone. Set `REANIME_API_URL` to light them up.
+
+Sirius also needs nothing deployed: it is `embed.filmu.in`, an iframe player
+addressed by AniList id at `/anime/{id}/{season}/{episode}` (season is always
+`1`, since an AniList id already identifies a single season). Like the other
+embed servers it plays in its own frame, loaded by the viewer's browser rather
+than fetched here — so it can play precisely when a host refuses this
+deployment's address, at the cost of the app's own quality menu, subtitle
+styling, skip-intro and resume. `FILMU_ENABLED=0` turns it off and `FILMU_URL`
+points it at a mirror.
 
 **2b. AniHeist.** [`ZenHamza/AniHeist-api`](https://github.com/ZenHamza/AniHeist-api),
 a separate Python service, tried ahead of everything else. The reason for the

@@ -23,6 +23,7 @@ import {
 import { aniheistConfigured, aniheistSources } from '@/lib/providers/aniheist';
 import { megaplayConfigured, megaplaySources, megaplayEmbed } from '@/lib/providers/megaplay';
 import { reanimeConfigured, reanimeFindSlug, reanimeSources } from '@/lib/providers/reanime';
+import { filmuConfigured, filmuEmbed } from '@/lib/providers/filmu';
 import { SERVERS, findServer, type StreamServer } from '@/lib/providers/servers';
 
 /**
@@ -239,6 +240,7 @@ function merge(payloads: StreamPayload[]): StreamPayload {
 function serverAvailable(server: StreamServer): boolean {
   if (server.backend === 'megaplay') return megaplayConfigured();
   if (server.backend === 'aniheist') return aniheistConfigured();
+  if (server.backend === 'filmu') return filmuConfigured();
   return reanimeConfigured();
 }
 
@@ -292,6 +294,17 @@ async function fromServer(
       ]);
     }
     return pair((audio) => megaplaySources(anilistId, episode, audio, timeoutMs, label));
+  }
+
+  if (server.backend === 'filmu') {
+    /*
+     * Embed-only and keyed by AniList id, so there is no network call and no
+     * sub/dub split in the URL — the frame's own player carries whatever tracks
+     * the episode has. One source, offered unverified for the same reason the
+     * megaplay embed is: the page is fetched by the viewer's browser, which is
+     * exactly where it can play when this server cannot reach the host.
+     */
+    return toPayload(filmuEmbed(anilistId, episode), label, 'sub', 'ja');
   }
 
   if (server.backend === 'aniheist') {
