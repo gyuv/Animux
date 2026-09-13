@@ -11,7 +11,7 @@
  * list in the browser and must not drag fetch code along with it.
  */
 
-export type ServerBackend = 'aniheist' | 'megaplay' | 'reanime' | 'filmu';
+export type ServerBackend = 'aniheist' | 'megaplay' | 'reanime' | 'filmu' | 'megaplaysu';
 
 export interface StreamServer {
   /** Stable slug; appears in the API call and in stored preferences. */
@@ -58,6 +58,7 @@ export const SERVERS: StreamServer[] = [
   { id: 'titan',  label: 'Titan',  note: 'External player · plays from your connection', backend: 'megaplay', embed: true },
   { id: 'rigel',  label: 'Rigel',  note: 'External player · sub and dub',                backend: 'aniheist', embed: true },
   { id: 'sirius', label: 'Sirius', note: 'External player · keyed by AniList id',        backend: 'filmu',    embed: true },
+  { id: 'altair', label: 'Altair', note: 'External player · sub and dub',                backend: 'megaplaysu', embed: true },
 ];
 
 /** The entry shown first, meaning "try them in order". */

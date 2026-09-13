@@ -202,6 +202,7 @@ choice persists across episodes:
 | Nova | Subtitle tracks and chapter marks | Yes |
 | Atlas | Subtitle tracks and chapter marks | Yes |
 | Sirius | External iframe player, keyed by AniList id | No |
+| Altair | External iframe player, sub and dub, by AniList id | No |
 
 The names are this app's own. Which upstream sits behind each one is
 deliberately not surfaced: a backend gets swapped whenever a scraper breaks,
@@ -228,6 +229,16 @@ than fetched here — so it can play precisely when a host refuses this
 deployment's address, at the cost of the app's own quality menu, subtitle
 styling, skip-intro and resume. `FILMU_ENABLED=0` turns it off and `FILMU_URL`
 points it at a mirror.
+
+Altair is `ani.megaplay.su`, another iframe player keyed by AniList id at
+`/ani/{id}/{episode}/{sub|dub}` — so it carries both a sub and a dub frame. It
+too needs nothing deployed and plays in the viewer's browser. `MEGAPLAYSU_ENABLED=0`
+turns it off; `MEGAPLAYSU_URL` points it at a mirror.
+
+All the embed servers are also **Auto's guaranteed last resort**: they resolve
+without a network call, so when every server-side scraper has been refused —
+the common case on a datacentre IP — Auto still returns a playable frame rather
+than a "no source could play that episode" error.
 
 **2b. AniHeist.** [`ZenHamza/AniHeist-api`](https://github.com/ZenHamza/AniHeist-api),
 a separate Python service, tried ahead of everything else. The reason for the

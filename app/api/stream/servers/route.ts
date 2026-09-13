@@ -6,6 +6,7 @@ import { megaplayConfigured, megaplaySources } from '@/lib/providers/megaplay';
 import { reanimeConfigured, reanimeFindSlug, reanimeSources } from '@/lib/providers/reanime';
 import { aniheistConfigured, aniheistSources } from '@/lib/providers/aniheist';
 import { filmuConfigured } from '@/lib/providers/filmu';
+import { megaplaySuConfigured } from '@/lib/providers/megaplaysu';
 
 /**
  * Which servers actually work from *this* deployment.
@@ -61,7 +62,8 @@ export async function GET(request: Request) {
       server.backend === 'megaplay' ? megaplayConfigured()
         : server.backend === 'aniheist' ? aniheistConfigured()
           : server.backend === 'filmu' ? filmuConfigured()
-            : reanimeConfigured();
+            : server.backend === 'megaplaysu' ? megaplaySuConfigured()
+              : reanimeConfigured();
 
     if (!configured) {
       return {
@@ -83,7 +85,7 @@ export async function GET(request: Request) {
     // "failed" would be a lie — report that it is available and unverifiable,
     // which is the honest answer for a source that can play precisely when this
     // deployment cannot reach the host.
-    if (server.backend === 'filmu') {
+    if (server.embed && (server.backend === 'filmu' || server.backend === 'megaplaysu')) {
       return {
         server: server.label,
         ok: true,

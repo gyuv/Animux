@@ -24,6 +24,7 @@ import { aniheistConfigured, aniheistSources } from '@/lib/providers/aniheist';
 import { megaplayConfigured, megaplaySources, megaplayEmbed } from '@/lib/providers/megaplay';
 import { reanimeConfigured, reanimeFindSlug, reanimeSources } from '@/lib/providers/reanime';
 import { filmuConfigured, filmuEmbed } from '@/lib/providers/filmu';
+import { megaplaySuConfigured, megaplaySuEmbed } from '@/lib/providers/megaplaysu';
 import { SERVERS, findServer, type StreamServer } from '@/lib/providers/servers';
 
 /**
@@ -241,6 +242,7 @@ function serverAvailable(server: StreamServer): boolean {
   if (server.backend === 'megaplay') return megaplayConfigured();
   if (server.backend === 'aniheist') return aniheistConfigured();
   if (server.backend === 'filmu') return filmuConfigured();
+  if (server.backend === 'megaplaysu') return megaplaySuConfigured();
   return reanimeConfigured();
 }
 
@@ -305,6 +307,21 @@ async function fromServer(
      * exactly where it can play when this server cannot reach the host.
      */
     return toPayload(filmuEmbed(anilistId, episode), label, 'sub', 'ja');
+  }
+
+  if (server.backend === 'megaplaysu') {
+    /*
+     * Embed-only and keyed by AniList id, so no network call — and its URL
+     * carries the audio track, so both sub and dub are offered as frames. Like
+     * the megaplay embed, they are offered unverified: the page is loaded by
+     * the viewer's browser (where a title with no dub shows its own message),
+     * and checking from here would ask the one address these hosts are most
+     * likely to refuse.
+     */
+    return merge([
+      toPayload(megaplaySuEmbed(anilistId, episode, 'sub'), `${label} (sub)`, 'sub', 'ja'),
+      toPayload(megaplaySuEmbed(anilistId, episode, 'dub'), `${label} (dub)`, 'dub', 'en'),
+    ]);
   }
 
   if (server.backend === 'aniheist') {
@@ -495,7 +512,14 @@ export async function GET(request: Request) {
      * from somewhere else, which is worse than an honest failure — so the
      * sweep only runs for Auto.
      */
-    if (!budget.spent()) {
+    /*
+     * Always entered, even with the budget spent: the embed servers resolve
+     * with no network call at all, so they cost nothing and cannot time out.
+     * Gating the whole sweep on the budget is what let a run of slow scrapers
+     * time out and then skip the one kind of server that would still have
+     * played — the "Titan: skipped, request budget spent" failure.
+     */
+    {
       const chosen = findServer(requestedServer);
 
       for (const server of chosen ? [chosen] : SERVERS) {
@@ -503,12 +527,22 @@ export async function GET(request: Request) {
           failures.push(`${server.label}: not configured on this deployment`);
           continue;
         }
-        if (budget.spent()) {
+        // In Auto, the embeds are held back to the very end of the chain: they
+        // always resolve (no network call), so trying them here would preempt
+        // the scraper tiers below, which play in the app's own player. A viewer
+        // who *picked* an embed still gets it now.
+        if (!chosen && server.embed) continue;
+        // A spent budget skips the network-bound servers. Embeds are exempt —
+        // they cost no budget — but in Auto they are handled in the final sweep
+        // below rather than here.
+        if (budget.spent() && !server.embed) {
           failures.push(`${server.label}: skipped, request budget spent`);
-          break;
+          continue;
         }
 
-        const slice = budget.slice(PROVIDER_MS);
+        // Embeds don't spend the budget, so they get a real deadline even when
+        // it is gone; only the network-bound servers draw from what is left.
+        const slice = server.embed ? PROVIDER_MS : budget.slice(PROVIDER_MS);
         try {
           const payload = await withTimeout(
             fromServer(server, anilistId, episode, slice, searchTitles),
@@ -624,6 +658,31 @@ export async function GET(request: Request) {
           } catch (err) {
             failures.push(`${name}: ${describe(err)}`);
           }
+        }
+      }
+    }
+
+    /*
+     * The embeds, last of all — Auto's guaranteed fallback.
+     *
+     * Every server-side route above has now been tried and refused, which is
+     * exactly the condition the embeds exist for: the frame is fetched by the
+     * viewer's browser, so it can play when this deployment's address is the
+     * one being blocked. They resolve with no network call, so they run even
+     * with the budget long spent. Returning a playable frame beats a 404 that
+     * leaves the viewer with nothing.
+     */
+    if (!findServer(requestedServer)) {
+      for (const server of SERVERS) {
+        if (!server.embed || !serverAvailable(server)) continue;
+        try {
+          const payload = await fromServer(server, anilistId, episode, PROVIDER_MS, searchTitles);
+          cacheWrite(cacheKey, { ...payload, source: server.id }, CACHE_TTL);
+          return NextResponse.json({ ...payload, source: server.id }, {
+            headers: { 'Cache-Control': 'no-store', 'X-Animux-Source': server.id },
+          });
+        } catch (err) {
+          failures.push(`${server.label}: ${describe(err)}`);
         }
       }
     }
