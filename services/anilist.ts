@@ -18,7 +18,7 @@
 
 import { schedule, backOff, isCoolingDown, cooldownRemaining } from '@/lib/catalogue/limiter';
 import { read, write, coalesce } from '@/lib/catalogue/cache';
-import { jikanHome } from './jikan';
+import { jikanHome, jikanAnimeDetail, jikanSearch, jikanTop } from './jikan';
 
 /** Overridable so the app can be pointed at a mirror, or at a fixture server
  *  during development when AniList's public API is unreachable. */
@@ -486,14 +486,48 @@ export async function searchAnime(
   if (variables.search && !params.sort) variables.sort = ['SEARCH_MATCH'];
 
   const key = `search:${JSON.stringify(variables)}`;
-  const { data, meta } = await cached<{ Page: { media: Anime[]; pageInfo: PageInfo } }>(
-    key,
-    variables.search ? 900 : 3600,
-    SEARCH_QUERY,
-    variables,
-  );
+  try {
+    const { data, meta } = await cached<{ Page: { media: Anime[]; pageInfo: PageInfo } }>(
+      key,
+      variables.search ? 900 : 3600,
+      SEARCH_QUERY,
+      variables,
+    );
 
-  return { ...data.Page, meta };
+    return { ...data.Page, meta };
+  } catch (error) {
+    /*
+     * AniList is unreachable and nothing was cached. MyAnimeList can still
+     * answer a text search or a popularity listing — it cannot honour the full
+     * filter set (genre, tag, season), so a filtered browse degrades to the
+     * most popular titles rather than an error. One page, no pagination: the
+     * fallback is a lifeline, not a mirror of the search.
+     */
+    try {
+      const search = typeof variables.search === 'string' ? variables.search : '';
+      const media = search
+        ? await jikanSearch(search, params.perPage ?? 24)
+        : await jikanTop(params.perPage ?? 24);
+
+      if (media.length > 0) {
+        const why = error instanceof AniListError ? error.viewerMessage : 'The catalogue is unavailable.';
+        return {
+          media,
+          pageInfo: { total: media.length, currentPage: 1, lastPage: 1, hasNextPage: false },
+          meta: {
+            notice: search
+              ? `${why} Showing MyAnimeList's matches instead — filters and paging are unavailable here.`
+              : `${why} Showing MyAnimeList's most popular titles instead — filters and paging are unavailable here.`,
+            stale: true,
+            ageSeconds: 0,
+          },
+        };
+      }
+    } catch {
+      /* Backup unreachable too; surface the original AniList failure below. */
+    }
+    throw error;
+  }
 }
 
 /* ------------------------------------------------------------------ detail */
@@ -505,13 +539,43 @@ const DETAIL_QUERY = `
 `;
 
 export async function getAnime(id: number): Promise<{ anime: AnimeDetail; meta: CatalogueMeta }> {
-  const { data, meta } = await cached<{ Media: AnimeDetail }>(
-    `media:${id}`,
-    43200,
-    DETAIL_QUERY,
-    { id },
-  );
-  return { anime: data.Media, meta };
+  try {
+    const { data, meta } = await cached<{ Media: AnimeDetail }>(
+      `media:${id}`,
+      43200,
+      DETAIL_QUERY,
+      { id },
+    );
+    return { anime: data.Media, meta };
+  } catch (error) {
+    /*
+     * A 'query' failure means AniList answered and said no such title — falling
+     * back to MAL would only turn an honest 404 into a wrong title, so it is
+     * rethrown for the page to render as not-found. Every other kind means
+     * AniList could not be reached, and that is exactly when MyAnimeList — a
+     * separate service on a separate address — is worth asking, the same
+     * reasoning the home page's fallback already runs on.
+     */
+    if (error instanceof AniListError && error.kind === 'query') throw error;
+
+    try {
+      const anime = await jikanAnimeDetail(id);
+      if (anime) {
+        const why = error instanceof AniListError ? error.viewerMessage : 'The catalogue is unavailable.';
+        return {
+          anime,
+          meta: {
+            notice: `${why} Showing MyAnimeList's record instead — cast, staff and the score breakdown are unavailable here, but the episode list and streaming work normally.`,
+            stale: true,
+            ageSeconds: 0,
+          },
+        };
+      }
+    } catch {
+      /* Backup unreachable too; surface the original AniList failure below. */
+    }
+    throw error;
+  }
 }
 
 /* ------------------------------------------------------------- bulk lookup */

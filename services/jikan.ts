@@ -1,4 +1,4 @@
-import type { Anime, HomeShelves } from './anilist';
+import type { Anime, AnimeDetail, ExternalLink, FuzzyDate, HomeShelves, Ranking } from './anilist';
 
 /**
  * Jikan — the unofficial MyAnimeList API (https://jikan.moe).
@@ -59,6 +59,19 @@ interface JikanAnime {
   genres?: { name?: string }[];
   studios?: { mal_id?: number; name?: string }[];
   trailer?: { youtube_id?: string | null } | null;
+  /* Extra fields present on /anime/{id}/full, read only by the detail fallback. */
+  title_synonyms?: string[];
+  source?: string | null;
+  rank?: number | null;
+  scored_by?: number | null;
+  aired?: {
+    prop?: {
+      from?: { day: number | null; month: number | null; year: number | null };
+      to?: { day: number | null; month: number | null; year: number | null };
+    };
+  } | null;
+  external?: { name?: string | null; url?: string | null }[];
+  streaming?: { name?: string | null; url?: string | null }[];
 }
 
 async function get(path: string, timeoutMs = 12_000): Promise<{ data?: JikanAnime[] }> {
@@ -83,6 +96,31 @@ async function get(path: string, timeoutMs = 12_000): Promise<{ data?: JikanAnim
   const json = await res.json().catch(() => null);
   if (!json) throw new JikanError('The backup catalogue sent something unreadable.');
   return json as { data?: JikanAnime[] };
+}
+
+/** As `get`, but for endpoints that return a single object rather than a list. */
+async function getOne(path: string, timeoutMs = 12_000): Promise<JikanAnime | null> {
+  let res: Response;
+  try {
+    res = await paced(() => fetch(`${BASE}${path}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
+      next: { revalidate: 43_200 },
+    }));
+  } catch (err) {
+    throw new JikanError(
+      'The backup catalogue is not answering.',
+      err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+    );
+  }
+
+  if (res.status === 404) return null;
+  if (res.status === 429) throw new JikanError('The backup catalogue is rate limiting us.', 'HTTP 429');
+  if (!res.ok) throw new JikanError('The backup catalogue returned an error.', `HTTP ${res.status}`);
+
+  const json = await res.json().catch(() => null);
+  if (!json || typeof json !== 'object') throw new JikanError('The backup catalogue sent something unreadable.');
+  return ((json as { data?: JikanAnime }).data ?? null);
 }
 
 /* --------------------------------------------------------------- mapping */
@@ -201,12 +239,139 @@ export async function jikanSearch(query: string, limit = 24): Promise<Anime[]> {
   return (data ?? []).map(toAnime);
 }
 
+/** The most popular titles, for a filter-only browse while AniList is unavailable. */
+export async function jikanTop(limit = 24): Promise<Anime[]> {
+  const { data } = await get(`/top/anime?filter=bypopularity&limit=${limit}`);
+  return (data ?? []).map(toAnime);
+}
+
+/* ----------------------------------------------------------- detail fallback */
+
+/** Jikan writes the source in title case ("Manga", "Original"); AniList uppercases. */
+function toSource(source: string | null | undefined): string | null {
+  if (!source) return null;
+  return source.trim().toUpperCase().replace(/[\s-]+/g, '_');
+}
+
+function toDate(p: { day: number | null; month: number | null; year: number | null } | undefined): FuzzyDate | null {
+  if (!p || (p.year == null && p.month == null && p.day == null)) return null;
+  return { year: p.year ?? null, month: p.month ?? null, day: p.day ?? null };
+}
+
+/**
+ * A single title in the app's full detail shape, from MAL.
+ *
+ * A deliberately partial answer: the fields Jikan's one `/full` call carries
+ * are filled, and the ones it does not — characters, staff, relations, the
+ * score histogram — come back empty rather than as a second, third and fourth
+ * round trip to a service that is only being asked because the primary one is
+ * already down. Every title-page section already renders empty gracefully, so
+ * the viewer gets the synopsis, artwork, facts and streaming links now instead
+ * of an error, and the notice says where it came from.
+ *
+ * The id is kept as the AniList id, not negated: the viewer is already on the
+ * real `/title/{anilistId}` address (a MAL entry is redirected there first),
+ * and every streaming server is keyed by that id — so the player must see it.
+ */
+function toDetail(raw: JikanAnime, anilistId: number): AnimeDetail {
+  const base = toAnime(raw);
+
+  const externalLinks: ExternalLink[] = [...(raw.streaming ?? []), ...(raw.external ?? [])]
+    .filter((l): l is { name?: string | null; url?: string | null } => Boolean(l?.url))
+    .map((l, i) => ({
+      id: i,
+      url: l.url as string,
+      site: l.name ?? 'Link',
+      type: null,
+      language: null,
+      color: null,
+      icon: null,
+    }));
+
+  const rankings: Ranking[] = [];
+  if (typeof raw.rank === 'number' && raw.rank > 0) {
+    rankings.push({
+      id: 1, rank: raw.rank, type: 'RATED', format: base.format, year: null,
+      season: null, allTime: true, context: 'highest rated all time',
+    });
+  }
+
+  return {
+    ...base,
+    id: anilistId,
+    idMal: raw.mal_id,
+    meanScore: base.averageScore,
+    synonyms: raw.title_synonyms ?? [],
+    source: toSource(raw.source),
+    countryOfOrigin: 'JP',
+    hashtag: null,
+    startDate: toDate(raw.aired?.prop?.from),
+    endDate: toDate(raw.aired?.prop?.to),
+    tags: [],
+    externalLinks,
+    streamingEpisodes: [],
+    rankings,
+    stats: null,
+    characters: null,
+    staff: null,
+    relations: null,
+    recommendations: null,
+  };
+}
+
+/**
+ * One title's full detail from MAL, addressed by AniList id.
+ *
+ * The title page is always on an AniList id, so the id is mapped to MAL first
+ * (the reverse of what the fallback listing needs) and then fetched. Returns
+ * null when the title cannot be mapped or found, so the caller can fall through
+ * to its own error rather than treating "no match" as an outage.
+ */
+export async function jikanAnimeDetail(anilistId: number): Promise<AnimeDetail | null> {
+  const malId = await anilistToMal(anilistId);
+  if (!malId) return null;
+
+  const raw = await getOne(`/anime/${malId}/full`);
+  if (!raw) return null;
+
+  return toDetail(raw, anilistId);
+}
+
 /* ---------------------------------------------------------------- mapping */
 
 const MAP_BASE = (process.env.ANIME_ID_MAP_URL || 'https://animeapi.my.id').replace(/\/+$/, '');
 
 /** MAL id -> AniList id, memoised: the mapping is static, so once is enough. */
 const mapped = new Map<number, number | null>();
+/** AniList id -> MAL id, the reverse, memoised the same way. */
+const mappedReverse = new Map<number, number | null>();
+
+/**
+ * Turn an AniList id into its MAL id, for the detail fallback.
+ *
+ * The mirror image of `malToAnilist`: the title page holds an AniList id, and
+ * MAL is keyed by its own, so the id has to be crossed over before Jikan can be
+ * asked anything. Same source, same memoisation, same reason a miss is not
+ * cached — an unreachable mapper is transient.
+ */
+export async function anilistToMal(anilistId: number): Promise<number | null> {
+  if (mappedReverse.has(anilistId)) return mappedReverse.get(anilistId) ?? null;
+
+  try {
+    const res = await fetch(`${MAP_BASE}/anilist/${anilistId}`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+      next: { revalidate: 86_400 },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { myanimelist?: number | null };
+    const id = typeof body.myanimelist === 'number' ? body.myanimelist : null;
+    mappedReverse.set(anilistId, id);
+    return id;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Turn a MAL id into the AniList id the rest of the app is built on.
