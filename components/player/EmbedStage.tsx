@@ -57,12 +57,15 @@ export function EmbedStage({
           title={`${title} — episode ${episode}`}
           className="absolute inset-0 h-full w-full border-0"
           /*
-           * allow-same-origin refers to the frame's own origin, not this app's,
-           * so the player can keep its own storage and still cannot reach
-           * anything here. Popups are blocked, which is most of what these
-           * pages would otherwise do.
+           * Deliberately unsandboxed. These external players detect a sandboxed
+           * frame and refuse to run inside one ("Sandboxed — remove sandbox to
+           * use it"), because they need script, their own storage, popups and
+           * fullscreen to work — the same capabilities a sandbox would strip.
+           * The trade is accepted knowingly: the frame is a different origin, so
+           * it already cannot touch this app's DOM, storage or cookies with or
+           * without the attribute, and an embed is a server the viewer picks on
+           * purpose. `allow` still scopes what the frame may do.
            */
-          sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           allowFullScreen
           referrerPolicy="origin"
