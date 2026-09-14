@@ -7,9 +7,7 @@ import { Rail } from '@/components/media/Rail';
 import { PosterCard } from '@/components/media/PosterCard';
 import { RankCard } from '@/components/media/RankCard';
 import { ContinueShelf } from '@/components/media/ContinueShelf';
-import { TrendingBoard } from '@/components/home/TrendingBoard';
-import { UpNextPanel } from '@/components/home/UpNextPanel';
-import { ReleaseCard } from '@/components/media/ReleaseCard';
+import { BentoBoard } from '@/components/home/BentoBoard';
 import { CatalogueNotice } from '@/components/ui/CatalogueNotice';
 import { season as seasonLabel } from '@/lib/format';
 
@@ -68,38 +66,6 @@ export default async function HomePage() {
   const featured = trending.slice(0, 5);
   const restOfTrending = trending.slice(5);
 
-  // Anything with a broadcast inside the next 48 hours, soonest first.
-  const airingSoon = [...trending, ...seasonal]
-    .filter((a) => a.nextAiringEpisode && a.nextAiringEpisode.timeUntilAiring < 172800)
-    .filter((a, i, list) => list.findIndex((b) => b.id === a.id) === i)
-    .sort((a, b) => a.nextAiringEpisode!.timeUntilAiring - b.nextAiringEpisode!.timeUntilAiring)
-    .slice(0, 12);
-
-  /*
-   * What is already out to watch.
-   *
-   * The catalogue publishes the *next* episode, not the last one, so the
-   * episode currently available is the one before it. Titles without that
-   * field are left out rather than guessed at: a wrong episode number on a
-   * card is worse than no number, because someone will click it expecting
-   * that episode.
-   */
-  const releases = [...trending, ...seasonal]
-    .filter((a, i, list) => list.findIndex((b) => b.id === a.id) === i)
-    .filter((a) => a.status === 'RELEASING' && (a.nextAiringEpisode?.episode ?? 0) > 1)
-    .slice(0, 20);
-
-  /*
-   * The three rankings this catalogue can actually answer. Sites in this shape
-   * usually offer Day / Week / Month — windows the data has no notion of, so
-   * those labels would be three different lies about the same list.
-   */
-  const boards = [
-    { id: 'trending', label: 'Trending', items: trending },
-    { id: 'popular', label: 'Popular', items: popular },
-    { id: 'rated', label: 'Rated', items: allTime },
-  ].filter((b) => b.items.length > 0);
-
   return (
     <>
       {featured.length > 0 && <HeroCarousel items={featured} />}
@@ -109,43 +75,12 @@ export default async function HomePage() {
       <ContinueShelf />
 
       {/*
-        * The main band: what is out now, with the rankings and the countdown
-        * alongside it. One column on a phone — the sidebar simply falls under
-        * the grid rather than becoming a second thing to scroll past.
+        * The gallery: a light, asymmetric bento of what is on now, sat inside
+        * the dark chrome. The loading engine (SmartImage) gives every tile a
+        * zero-CLS box and an instant colour blur-up, and the tiles carry the
+        * countdown and the top score that used to live in a separate sidebar.
         */}
-      <section className="gutter-x py-6">
-        <div className="grid gap-x-8 gap-y-10 lg:grid-cols-[minmax(0,1fr)_336px]">
-          <div className="min-w-0">
-            {releases.length > 0 && (
-              <>
-                <header className="mb-4 flex items-end justify-between gap-4">
-                  <div>
-                    <h2 className="section-title">New episodes</h2>
-                    <p className="mt-0.5 text-meta text-haze">Out now, from this season's run</p>
-                  </div>
-                  <SeeAll href={`/browse?season=${now.season}&year=${now.year}&sort=TRENDING_DESC`} />
-                </header>
-
-                <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 xl:grid-cols-5">
-                  {releases.map((a, i) => (
-                    <ReleaseCard
-                      key={a.id}
-                      anime={a}
-                      episodeOut={(a.nextAiringEpisode?.episode ?? 1) - 1}
-                      priority={i < 5}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <aside className="flex min-w-0 flex-col gap-5 lg:sticky lg:top-4 lg:self-start">
-            {boards.length > 0 && <TrendingBoard boards={boards} />}
-            <UpNextPanel items={airingSoon} />
-          </aside>
-        </div>
-      </section>
+      <BentoBoard trending={trending} seasonal={seasonal} />
 
       {allTime.length > 0 && (
         <Rail
