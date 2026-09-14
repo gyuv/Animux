@@ -46,7 +46,7 @@ export function Rail({ title, note, action, children }: Props) {
   };
 
   return (
-    <section className="relative py-6">
+    <section className="cv-rail relative py-6">
       <header className="gutter-x mb-3.5 flex items-end justify-between gap-4">
         <div>
           <h2 className="font-display text-title font-bold text-paper">{title}</h2>

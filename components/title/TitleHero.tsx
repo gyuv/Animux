@@ -25,15 +25,20 @@ export function TitleHero({ anime }: { anime: AnimeDetail }) {
   const bgTrailer = backgroundTrailerUrl(anime.trailer);
 
   /*
-   * The trailer autoplays over the banner, muted, once the page has mounted.
-   * Held to the client so the server never ships an autoplaying iframe, and
-   * given a short delay so the banner image paints first and the video fades
-   * in over it rather than flashing an empty frame. The image stays underneath
-   * as the poster and as the fallback for titles with no trailer.
+   * The trailer autoplays over the banner, muted, once the page has mounted —
+   * but only where it is a feature rather than a tax. A living-room TV runs a
+   * weak GPU, and a phone runs on someone's data; an autoplaying iframe there
+   * is what made the page scroll badly and drains a metered connection, so it
+   * is held to pointer devices, and skipped for reduced-motion and Save-Data.
+   * The banner image stays underneath as the poster and the fallback either way.
    */
   const [showTrailer, setShowTrailer] = useState(false);
   useEffect(() => {
     if (!bgTrailer) return;
+    const device = document.documentElement.dataset.device;
+    if (device === 'tv' || device === 'mobile') return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if ((navigator as { connection?: { saveData?: boolean } }).connection?.saveData) return;
     const t = setTimeout(() => setShowTrailer(true), 600);
     return () => clearTimeout(t);
   }, [bgTrailer]);

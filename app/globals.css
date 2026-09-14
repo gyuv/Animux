@@ -170,6 +170,18 @@
     box-shadow: 0 24px 70px -20px rgb(0 0 0 / 0.7);
   }
 
+  /* The navigation material. A live backdrop-blur on capable devices; on a TV
+     it becomes a solid panel instead, because a full-width blur that repaints
+     as D-pad focus moves is the single most expensive thing a living-room GPU
+     is asked to do, and it is what made the remote feel laggy. */
+  .nav-glass {
+    border: 1px solid rgb(255 255 255 / 0.09);
+    background: rgb(18 15 27 / 0.62);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    box-shadow: 0 22px 60px -22px rgb(0 0 0 / 0.9);
+  }
+
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-ink-600
            bg-ink-800/80 px-3 py-1.5 text-micro font-medium text-haze
@@ -236,6 +248,35 @@ video::cue {
   background: rgb(0 0 0 / 0.62);
   font-family: var(--font-ui), system-ui, sans-serif;
   line-height: 1.35;
+}
+
+/* Long pages skip the paint and layout of what is far off-screen until it
+   nears the viewport — most of the win on the title page's stacked sections
+   and the reason its scroll now stays smooth on a weak device. */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
+}
+.cv-rail {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 360px;
+}
+
+/*
+ * Television tuning. A remote-driven session runs on a weak GPU and moves
+ * focus, not a pointer, so two things that are cheap on a laptop are not here:
+ * a full-width backdrop-blur that repaints as focus travels, and transform
+ * micro-animations on every card the D-pad lands on. Both are dropped so the
+ * remote feels immediate; the colour and focus ring still carry the state.
+ */
+[data-device='tv'] .nav-glass {
+  background: rgb(15 12 22 / 0.96);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-device='tv'] .tv-calm,
+[data-device='tv'] .tv-calm * {
+  transition-duration: 0.12s !important;
 }
 
 /* Never animate for people who asked us not to. */
