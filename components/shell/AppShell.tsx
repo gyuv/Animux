@@ -98,39 +98,76 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 /* --------------------------------------------------------------- desktop */
 
+/**
+ * A floating capsule dock rather than a full-height edge rail.
+ *
+ * It hovers, vertically centred, off the left edge as a single glass pill, and
+ * expands on hover — or on keyboard focus reaching it — to slide the labels out
+ * beside their icons. Collapsed it is a column of icons; the labels stay in the
+ * DOM the whole time, so a screen reader always has them and only the visual
+ * width changes. Everything here is a CSS width/opacity transition — no
+ * per-frame JavaScript, no measuring — so it costs nothing to run. On a TV it
+ * simply starts expanded, since a remote has no hover.
+ */
 function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-y-0 left-0 z-40 flex w-rail flex-col items-center
-                 gap-1 border-r border-ink-700/60 bg-ink-900/80 py-5 backdrop-blur-xl"
+      className="pointer-events-none fixed inset-y-0 left-0 z-40 flex w-rail items-center justify-center"
     >
-      <Link href="/" className="mb-5 rounded-key px-2 py-1" aria-label="Animux home">
-        <Mark />
-      </Link>
-
-      {LINKS.map(({ href, label, icon: Icon }) => {
-        const active = href === '/' ? pathname === '/' : pathname?.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            aria-current={active ? 'page' : undefined}
-            className={`group relative flex w-[84%] flex-col items-center gap-1.5 rounded-panel py-3
-                        transition-colors duration-200 ease-physical
-                        ${active ? 'bg-ink-700 text-paper' : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
+      <div
+        className={`group pointer-events-auto flex flex-col gap-1 overflow-hidden rounded-[26px]
+                    border border-white/[0.08] bg-ink-900/70 p-2 backdrop-blur-xl
+                    shadow-[0_30px_80px_-32px_rgb(0_0_0/0.9),0_0_0_1px_rgb(0_0_0/0.3)]
+                    transition-[width] duration-300 ease-physical
+                    ${tv ? 'w-56' : 'w-[54px] hover:w-52 focus-within:w-52'}`}
+    >
+        <Link
+          href="/"
+          aria-label="Animux home"
+          className="mb-1 flex h-11 items-center gap-3 rounded-2xl px-[13px]"
+        >
+          <span className="grid w-7 shrink-0 place-items-center"><Mark /></span>
+          <span
+            className={`whitespace-nowrap font-display text-lead font-black tracking-tight text-paper
+                        transition-opacity duration-200
+                        ${tv ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
           >
-            {active && (
+            anim<span className="text-chroma">ux</span>
+          </span>
+        </Link>
+
+        {LINKS.map(({ href, label, icon: Icon }) => {
+          const active = href === '/' ? pathname === '/' : pathname?.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              aria-current={active ? 'page' : undefined}
+              title={label}
+              className={`relative flex h-11 items-center gap-3 rounded-2xl px-[13px]
+                          transition-colors duration-200 ease-physical
+                          ${active
+                            ? 'bg-[rgb(var(--chroma)/0.16)] text-chroma'
+                            : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
+            >
+              <span className="grid w-7 shrink-0 place-items-center">
+                <Icon size={tv ? 24 : 21} strokeWidth={active ? 2.5 : 1.9} aria-hidden />
+              </span>
               <span
-                className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-chroma"
-                aria-hidden
-              />
-            )}
-            <Icon size={tv ? 26 : 20} strokeWidth={active ? 2.4 : 1.9} aria-hidden />
-            <span className={`${tv ? 'text-meta' : 'text-micro'} font-medium`}>{label}</span>
-          </Link>
-        );
-      })}
+                className={`whitespace-nowrap ${tv ? 'text-meta' : 'text-meta'} font-semibold
+                            transition-opacity duration-200
+                            ${tv ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
+              >
+                {label}
+              </span>
+              {active && (
+                <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-chroma" aria-hidden />
+              )}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
@@ -193,34 +230,41 @@ function MobileTopBar({ onSearch }: { onSearch: () => void }) {
   );
 }
 
+/**
+ * A floating glass pill in the thumb zone rather than an edge-to-edge bar — the
+ * same capsule material as the desktop dock, so the two form factors read as
+ * one system. The active tab carries a chroma-tinted lozenge that its label
+ * slides into; tapping presses it in (active:scale) for a tactile response.
+ */
 function TabBar({ pathname }: { pathname: string | null }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-700/60
-                 bg-ink-900/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl"
+      className="fixed inset-x-0 bottom-0 z-40 flex justify-center
+                 pb-[max(12px,env(safe-area-inset-bottom))] px-gutter"
     >
-      <ul className="flex">
+      <ul
+        className="flex items-center gap-1 rounded-full border border-white/[0.09]
+                   bg-ink-900/75 p-1.5 backdrop-blur-xl
+                   shadow-[0_20px_50px_-18px_rgb(0_0_0/0.9)]"
+      >
         {MOBILE_LINKS.map(({ href, label, icon: Icon }) => {
           const active = href === '/' ? pathname === '/' : pathname?.startsWith(href);
           return (
-            <li key={href} className="flex-1">
+            <li key={href}>
               <Link
                 href={href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex flex-col items-center gap-1 py-2.5
-                            ${active ? 'text-paper' : 'text-haze'}`}
+                aria-label={label}
+                className={`flex items-center gap-2 rounded-full px-3.5 py-2.5
+                            transition-[background,color,transform] duration-200 ease-physical
+                            active:scale-95
+                            ${active
+                              ? 'bg-[rgb(var(--chroma)/0.18)] text-chroma'
+                              : 'text-haze active:bg-ink-800'}`}
               >
-                <span className="relative">
-                  <Icon size={22} strokeWidth={active ? 2.4 : 1.9} aria-hidden />
-                  {active && (
-                    <span
-                      className="absolute -top-2 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-chroma"
-                      aria-hidden
-                    />
-                  )}
-                </span>
-                <span className="text-micro font-medium">{label}</span>
+                <Icon size={21} strokeWidth={active ? 2.5 : 1.9} aria-hidden />
+                {active && <span className="text-meta font-semibold">{label}</span>}
               </Link>
             </li>
           );
