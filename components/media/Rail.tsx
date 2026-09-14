@@ -61,7 +61,9 @@ export function Rail({ title, note, action, children }: Props) {
         </div>
       </header>
 
-      <div ref={track} onScroll={measure} className="rail-scroll gutter-x pb-2">
+      {/* py-5 so a hovered card's colour bleed has room to show instead of
+          being clipped at the scroll container's edge. */}
+      <div ref={track} onScroll={measure} className="rail-scroll gutter-x py-5">
         {children}
       </div>
     </section>

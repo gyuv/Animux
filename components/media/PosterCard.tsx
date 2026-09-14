@@ -36,10 +36,21 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
       className="group relative block w-[144px] shrink-0 outline-none
                  sm:w-[164px] [--card-w:144px] sm:[--card-w:164px]"
     >
+      <div className="relative transition-transform duration-300 ease-physical
+                      group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5">
+        {/* Colour bleed: the poster's own hue radiating out, on hover or focus.
+            A sibling behind the art (DOM order keeps the art on top), and a plain
+            radial gradient — no filter — so it lights up without costing a frame. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -inset-4 rounded-[24px]
+                     opacity-0 transition-opacity duration-300 ease-physical
+                     group-hover:opacity-100 group-focus-visible:opacity-100"
+          style={{ background: `radial-gradient(58% 58% at 50% 46%, rgb(${chroma} / 0.62), transparent 72%)` }}
+        />
+
       <div
-        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800
-                   transition-transform duration-300 ease-physical
-                   group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5"
+        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800"
       >
         {src && (
           <Image
@@ -72,6 +83,7 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
             />
           </div>
         )}
+      </div>
       </div>
 
       <div className="mt-2.5 px-0.5">
