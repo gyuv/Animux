@@ -46,7 +46,9 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
           className="pointer-events-none absolute -inset-4 rounded-[24px]
                      opacity-0 transition-opacity duration-300 ease-physical
                      group-hover:opacity-100 group-focus-visible:opacity-100"
-          style={{ background: `radial-gradient(58% 58% at 50% 46%, rgb(${chroma} / 0.62), transparent 72%)` }}
+          style={{
+            background: `radial-gradient(60% 58% at 50% 45%, rgb(${chroma} / 0.85), rgb(${chroma} / 0.38) 42%, transparent 74%)`,
+          }}
         />
 
       <div
@@ -71,7 +73,7 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
           className="pointer-events-none absolute inset-0 rounded-art opacity-0
                      ring-2 ring-inset transition-opacity duration-300
                      group-hover:opacity-100 group-focus-visible:opacity-100"
-          style={{ boxShadow: `0 12px 40px -8px rgb(${chroma} / 0.55)`, ['--tw-ring-color' as string]: `rgb(${chroma} / 0.7)` }}
+          style={{ boxShadow: `0 0 26px -2px rgb(${chroma} / 0.6), 0 18px 55px -10px rgb(${chroma} / 0.75)`, ['--tw-ring-color' as string]: `rgb(${chroma} / 0.85)` }}
           aria-hidden
         />
 

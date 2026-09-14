@@ -68,17 +68,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isMobile = device === 'mobile';
 
   return (
-    <div className={isMobile ? '' : 'pl-rail'}>
+    <div>
       {isMobile ? (
         <>
           <MobileTopBar onSearch={openPalette} />
           <TabBar pathname={pathname} />
         </>
       ) : (
-        <>
-          <SideRail pathname={pathname} tv={device === 'tv'} />
-          <TopBar onSearch={openPalette} tv={device === 'tv'} />
-        </>
+        <TopNav pathname={pathname} onSearch={openPalette} tv={device === 'tv'} />
       )}
 
       <main
@@ -99,103 +96,66 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 /* --------------------------------------------------------------- desktop */
 
 /**
- * A floating capsule dock rather than a full-height edge rail.
+ * One top bar carrying everything: the wordmark at the left, the links beside
+ * it, search at the right. No side rail — the content runs full-bleed beneath,
+ * which is what makes the app feel like an application rather than a page in a
+ * frame.
  *
- * It hovers, vertically centred, off the left edge as a single glass pill, and
- * expands on hover — or on keyboard focus reaching it — to slide the labels out
- * beside their icons. Collapsed it is a column of icons; the labels stay in the
- * DOM the whole time, so a screen reader always has them and only the visual
- * width changes. Everything here is a CSS width/opacity transition — no
- * per-frame JavaScript, no measuring — so it costs nothing to run. On a TV it
- * simply starts expanded, since a remote has no hover.
+ * It floats over the content rather than pushing it down. At the top of the
+ * page it is transparent, save for a soft top-down scrim that keeps the links
+ * legible over a bright hero (the Netflix/Apple-TV move); once scrolled it
+ * settles into a glass bar. One backdrop-filter, only when scrolled.
  */
-function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
-  return (
-    <nav
-      aria-label="Main"
-      className="pointer-events-none fixed inset-y-0 left-0 z-40 flex w-rail items-center justify-center"
-    >
-      <div
-        className={`group pointer-events-auto flex flex-col gap-1 overflow-hidden rounded-[26px]
-                    border border-white/[0.08] bg-ink-900/70 p-2 backdrop-blur-xl
-                    shadow-[0_30px_80px_-32px_rgb(0_0_0/0.9),0_0_0_1px_rgb(0_0_0/0.3)]
-                    transition-[width] duration-300 ease-physical
-                    ${tv ? 'w-56' : 'w-[54px] hover:w-52 focus-within:w-52'}`}
-    >
-        <Link
-          href="/"
-          aria-label="Animux home"
-          className="mb-1 flex h-11 items-center gap-3 rounded-2xl px-[13px]"
-        >
-          <span className="grid w-7 shrink-0 place-items-center"><Mark /></span>
-          <span
-            className={`whitespace-nowrap font-display text-lead font-black tracking-tight text-paper
-                        transition-opacity duration-200
-                        ${tv ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
-          >
-            anim<span className="text-chroma">ux</span>
-          </span>
-        </Link>
+function TopNav({ pathname, onSearch, tv }: { pathname: string | null; onSearch: () => void; tv: boolean }) {
+  const scrolled = useScrolled(24);
 
-        {LINKS.map(({ href, label, icon: Icon }) => {
+  return (
+    <header
+      className={`fixed inset-x-0 top-0 z-40 flex h-topbar items-center gap-4 px-gutter
+                  transition-colors duration-300 ease-physical sm:gap-6
+                  ${scrolled
+                    ? 'border-b border-white/[0.06] bg-ink-900/70 backdrop-blur-xl'
+                    : 'border-b border-transparent bg-gradient-to-b from-ink-950/85 via-ink-950/35 to-transparent'}`}
+    >
+      <Link href="/" aria-label="Animux home" className="shrink-0 rounded-key outline-none">
+        <Wordmark tv={tv} />
+      </Link>
+
+      <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+        {LINKS.map(({ href, label }) => {
           const active = href === '/' ? pathname === '/' : pathname?.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? 'page' : undefined}
-              title={label}
-              className={`relative flex h-11 items-center gap-3 rounded-2xl px-[13px]
-                          transition-colors duration-200 ease-physical
-                          ${active
-                            ? 'bg-[rgb(var(--chroma)/0.16)] text-chroma'
-                            : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
+              className={`relative rounded-full px-3.5 font-semibold transition-colors duration-200 ease-physical
+                          ${tv ? 'py-2.5 text-lead' : 'py-2 text-meta'}
+                          ${active ? 'text-paper' : 'text-haze hover:text-paper'}`}
             >
-              <span className="grid w-7 shrink-0 place-items-center">
-                <Icon size={tv ? 24 : 21} strokeWidth={active ? 2.5 : 1.9} aria-hidden />
-              </span>
-              <span
-                className={`whitespace-nowrap ${tv ? 'text-meta' : 'text-meta'} font-semibold
-                            transition-opacity duration-200
-                            ${tv ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
-              >
-                {label}
-              </span>
+              {label}
               {active && (
-                <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-chroma" aria-hidden />
+                <span
+                  className="absolute inset-x-3 -bottom-0.5 h-[2px] rounded-full bg-chroma"
+                  aria-hidden
+                />
               )}
             </Link>
           );
         })}
-      </div>
-    </nav>
-  );
-}
+      </nav>
 
-/**
- * The top bar exists for one control — search — and turns transparent at the
- * top of the page so it never puts a bar across the middle of a hero image.
- */
-function TopBar({ onSearch, tv }: { onSearch: () => void; tv: boolean }) {
-  const scrolled = useScrolled(24);
-
-  return (
-    <header
-      className={`fixed inset-x-0 left-rail top-0 z-30 flex h-topbar items-center justify-end gap-3
-                  px-gutter transition-colors duration-300 ease-physical
-                  ${scrolled ? 'border-b border-ink-700/50 bg-ink-900/80 backdrop-blur-xl' : 'bg-transparent'}`}
-    >
       <button
         type="button"
         onClick={onSearch}
-        className={`flex items-center gap-2.5 rounded-key border border-ink-600/80 bg-ink-800/60
-                    px-3.5 py-2 text-meta text-haze backdrop-blur-md transition-colors
-                    hover:border-ink-500 hover:text-paper ${tv ? 'w-72' : 'w-64'}`}
+        className={`ml-auto flex items-center gap-2.5 rounded-full border border-white/[0.1]
+                    bg-white/[0.06] px-4 py-2 text-meta text-haze backdrop-blur-md transition-colors
+                    hover:border-white/20 hover:text-paper ${tv ? 'w-72' : 'w-56 lg:w-64'}`}
       >
         <Search size={16} aria-hidden />
-        <span className="flex-1 text-left">Search anime</span>
+        <span className="flex-1 truncate text-left">Search anime</span>
         {!tv && (
-          <kbd className="rounded border border-ink-600 bg-ink-900/70 px-1.5 py-0.5 font-sans text-[10px]">
+          <kbd className="rounded border border-white/15 bg-ink-950/50 px-1.5 py-0.5 font-sans text-[10px]">
             ⌘K
           </kbd>
         )}
@@ -213,9 +173,11 @@ function MobileTopBar({ onSearch }: { onSearch: () => void }) {
     <header
       className={`fixed inset-x-0 top-0 z-30 flex h-topbar items-center gap-3 px-gutter
                   transition-colors duration-300
-                  ${scrolled ? 'border-b border-ink-700/50 bg-ink-900/85 backdrop-blur-xl' : 'bg-transparent'}`}
+                  ${scrolled
+                    ? 'border-b border-white/[0.06] bg-ink-900/75 backdrop-blur-xl'
+                    : 'bg-gradient-to-b from-ink-950/85 to-transparent'}`}
     >
-      <Link href="/" aria-label="Animux home"><Mark /></Link>
+      <Link href="/" aria-label="Animux home"><Wordmark /></Link>
       <button
         type="button"
         onClick={onSearch}
@@ -288,13 +250,39 @@ function useScrolled(threshold: number) {
 }
 
 /**
- * The wordmark is set in the display face and leans on the one glyph the name
- * gives us for free — the x — which doubles as a play head when clipped.
+ * The compact glyph — the initial and the x, the one letter the name gives us
+ * for free, which doubles as a play head. Kept for tight spots.
  */
 function Mark() {
   return (
     <span className="font-display text-[19px] font-black leading-none tracking-tight text-paper">
       a<span className="text-chroma">x</span>
+    </span>
+  );
+}
+
+/**
+ * The full wordmark, for the top-left of the bar. A proper size so it reads as
+ * the app's name, with the play-triangle before it and the "ux" carrying the
+ * artwork colour of whatever is on screen.
+ */
+function Wordmark({ tv }: { tv?: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden
+        className={tv ? 'h-6 w-6' : 'h-[22px] w-[22px]'}
+        style={{ color: 'rgb(var(--chroma))' }}
+      >
+        <path d="M4 3.5 20 12 4 20.5z" fill="currentColor" />
+      </svg>
+      <span
+        className={`font-display font-black leading-none tracking-[-0.03em] text-paper
+                    ${tv ? 'text-[30px]' : 'text-[23px]'}`}
+      >
+        anim<span className="text-chroma">ux</span>
+      </span>
     </span>
   );
 }
