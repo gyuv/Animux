@@ -27,9 +27,9 @@ export function ContinueCard({ entry, fill }: { entry: WatchProgress; fill?: boo
         href={`/watch/${entry.animeId}?ep=${entry.episode}&t=${Math.floor(entry.position)}`}
         className="block outline-none"
       >
-        <div className="relative aspect-video overflow-hidden rounded-art bg-ink-800
+        <div className="relative aspect-video overflow-hidden rounded-art bg-ink-800 ring-1 ring-white/[0.06]
                         transition-transform duration-300 ease-physical
-                        group-hover:-translate-y-1 group-focus-within:-translate-y-1">
+                        group-hover:-translate-y-1 group-hover:scale-[1.01] group-focus-within:-translate-y-1">
           {entry.cover && (
             <Image
               src={entry.cover}

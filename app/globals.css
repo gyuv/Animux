@@ -52,6 +52,34 @@
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     overscroll-behavior-y: none;
+    font-feature-settings: 'tnum' 1, 'ss01' 1;
+    position: relative;
+  }
+
+  /*
+   * Ambient wash. Three soft, slow-drifting fields of colour sitting behind
+   * every page — fixed, so scrolling never reveals a seam, and cheap, since
+   * it is four gradients on a pseudo-element rather than anything painted
+   * per-section. The signal/gold pair carries the brand; the third field
+   * tracks whatever artwork is currently in view via --chroma, so the glow
+   * itself joins in on the "repaint to match what's on screen" behaviour
+   * the rest of the app already does.
+   */
+  body::before {
+    content: '';
+    /* Fixed + negative z-index rather than reparenting the app root: it
+       needs to sit under every static child without turning that child
+       into a positioning context, which would hijack every fixed-position
+       nav bar and dialog in the app (they all anchor to the viewport). */
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(880px 620px at 12% -8%, rgb(var(--chroma) / 0.16), transparent 60%),
+      radial-gradient(720px 560px at 108% 8%, rgb(255 77 109 / 0.10), transparent 58%),
+      radial-gradient(760px 640px at 50% 118%, rgb(245 197 66 / 0.06), transparent 60%);
+    animation: auroraDrift 26s ease-in-out infinite;
   }
 
   /* One focus treatment for keyboard, remote and switch control.
@@ -101,30 +129,58 @@
   }
   .rail-scroll > * {
     scroll-snap-align: start;
+    animation: rise 0.55s var(--ease-physical) both;
   }
+  /* A loose stagger across the first handful of cards, capped so a fifty-item
+     rail doesn't queue up fifty individual delays for cards nobody has
+     scrolled to yet. */
+  .rail-scroll > *:nth-child(2) { animation-delay: 0.05s; }
+  .rail-scroll > *:nth-child(3) { animation-delay: 0.1s; }
+  .rail-scroll > *:nth-child(4) { animation-delay: 0.15s; }
+  .rail-scroll > *:nth-child(5) { animation-delay: 0.2s; }
+  .rail-scroll > *:nth-child(6) { animation-delay: 0.25s; }
+  .rail-scroll > *:nth-child(n+7) { animation-delay: 0.3s; }
 
   .key {
-    @apply inline-flex items-center justify-center gap-2 rounded-key
+    @apply relative inline-flex items-center justify-center gap-2 overflow-hidden rounded-key
            px-5 py-3 text-meta font-semibold transition-all duration-200;
     transition-timing-function: var(--ease-physical);
+  }
+
+  /* A single diagonal highlight that sweeps through on hover — the one
+     "this surface is lacquered, not painted" cue every filled button gets. */
+  .key::after {
+    content: '';
+    @apply pointer-events-none absolute inset-0 -translate-x-full opacity-0;
+    background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / 0.35) 50%, transparent 60%);
+    transition: transform 0.65s var(--ease-physical), opacity 0.65s var(--ease-physical);
+  }
+  .key:hover::after {
+    @apply translate-x-full opacity-100;
   }
 
   .key-primary {
     @apply key bg-paper text-ink-900;
   }
   .key-primary:hover {
-    box-shadow: 0 0 0 1px rgb(var(--chroma) / 0.5), 0 8px 30px rgb(var(--chroma) / 0.3);
-    transform: translateY(-1px);
+    box-shadow: 0 0 0 1px rgb(var(--chroma) / 0.5), 0 10px 34px -4px rgb(var(--chroma) / 0.35);
+    transform: translateY(-1.5px);
   }
 
   .key-chroma {
     @apply key font-bold;
-    background: rgb(var(--chroma));
+    background: linear-gradient(155deg, rgb(var(--chroma)), rgb(var(--chroma) / 0.82));
     color: #0E0B16;
+    box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.25) inset, 0 6px 20px -8px rgb(var(--chroma) / 0.7);
   }
   .key-chroma:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 34px -6px rgb(var(--chroma) / 0.6);
+    transform: translateY(-1.5px);
+    box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.3) inset, 0 14px 38px -8px rgb(var(--chroma) / 0.75);
+  }
+  .key-chroma:active,
+  .key-primary:active,
+  .key-ghost:active {
+    transform: translateY(0px) scale(0.98);
   }
 
   .key-ghost {
@@ -133,13 +189,16 @@
   .key-ghost:hover {
     @apply bg-ink-700;
     border-color: rgb(var(--chroma) / 0.6);
+    box-shadow: 0 8px 24px -10px rgb(var(--chroma) / 0.45);
   }
 
   /* Frosted surface used by every overlay, sheet and menu, so they all
-     read as the same material rather than four different panels. */
+     read as the same material rather than four different panels. A hairline
+     of light along the top edge is what actually reads as "glass" rather
+     than "translucent grey box" — real frosted panels catch light unevenly. */
   .glass {
-    @apply border border-white/[0.07] bg-ink-800/70 backdrop-blur-2xl;
-    box-shadow: 0 24px 70px -20px rgb(0 0 0 / 0.7);
+    @apply relative border border-white/[0.07] bg-ink-800/70 backdrop-blur-2xl;
+    box-shadow: 0 24px 70px -20px rgb(0 0 0 / 0.7), 0 1px 0 0 rgb(255 255 255 / 0.06) inset;
   }
 
   .chip {
@@ -194,11 +253,44 @@
   .chroma-rule {
     background: linear-gradient(90deg, rgb(var(--chroma)), rgb(var(--chroma) / 0));
   }
+
+  /* Floating artwork cutout — real catalogue posters presented as if lifted
+     off the page and drifting, for the hero and the boot splash. The lift
+     is a drop-shadow (follows the art's silhouette) rather than a box-shadow
+     (which would draw a rectangle behind a rectangle and give the game away). */
+  .cutout-float {
+    animation: cutoutFloat 7s var(--ease-physical) infinite;
+    filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.55));
+  }
+
+  .glow-pulse {
+    animation: glowPulse 2.6s ease-in-out infinite;
+  }
 }
 
 @keyframes sheen {
   from { transform: translateX(-120%); }
   to   { transform: translateX(220%); }
+}
+
+@keyframes auroraDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+  50% { transform: translate3d(-1.5%, 1.5%, 0) scale(1.05); opacity: 0.85; }
+}
+
+@keyframes cutoutFloat {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, -3deg)); }
+  50% { transform: translateY(-16px) rotate(var(--tilt, -3deg)); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@keyframes splashBar {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
 }
 
 /* Subtitle sizing is a preference, so it is driven by a variable the player

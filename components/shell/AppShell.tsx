@@ -7,6 +7,7 @@ import { Home, Compass, CalendarDays, Bookmark, Settings2, Search } from 'lucide
 import { useDevice } from '@/hooks/useDevice';
 import { useSpatialNav } from '@/hooks/useSpatialNav';
 import { CommandPalette } from '@/components/search/CommandPalette';
+import { SplashScreen } from '@/components/shell/SplashScreen';
 
 /**
  * The navigation is the part of this app that has to survive being wrapped in
@@ -63,7 +64,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // The player owns the whole screen; navigation would only be in the way.
   const immersive = pathname?.startsWith('/watch');
-  if (immersive) return <>{children}</>;
+  if (immersive) {
+    return (
+      <>
+        {children}
+        <SplashScreen />
+      </>
+    );
+  }
 
   const isMobile = device === 'mobile';
 
@@ -92,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <CommandPalette open={palette} onClose={closePalette} />
+      <SplashScreen />
     </div>
   );
 }
@@ -117,12 +126,12 @@ function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={`group relative flex w-[84%] flex-col items-center gap-1.5 rounded-panel py-3
-                        transition-colors duration-200 ease-physical
-                        ${active ? 'bg-ink-700 text-paper' : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
+                        transition-all duration-200 ease-physical
+                        ${active ? 'bg-ink-700 text-paper shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.06)]' : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
           >
             {active && (
               <span
-                className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-chroma"
+                className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-chroma shadow-[0_0_12px_2px_rgb(var(--chroma)/0.7)]"
                 aria-hidden
               />
             )}
@@ -249,7 +258,13 @@ function useScrolled(threshold: number) {
  */
 function Mark() {
   return (
-    <span className="font-display text-[19px] font-black leading-none tracking-tight text-paper">
+    <span className="group/mark relative font-display text-[19px] font-black leading-none tracking-tight text-paper">
+      <span
+        className="absolute left-1/2 top-1/2 -z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2
+                   rounded-full bg-chroma/0 blur-lg transition-colors duration-300
+                   group-hover/mark:bg-chroma/40"
+        aria-hidden
+      />
       a<span className="text-chroma">x</span>
     </span>
   );

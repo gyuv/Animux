@@ -163,7 +163,7 @@ export function FilterBar({ total }: { total: number }) {
       )}
 
       {open && (
-        <div className="mt-4 space-y-5 rounded-panel border border-ink-700 bg-ink-800/60 p-5">
+        <div className="mt-4 origin-top animate-scale-in space-y-5 rounded-panel border border-ink-700 bg-ink-800/60 p-5">
           <Group label="Genre" hint="Tap once to include, twice to exclude">
             {GENRES.map((g) => {
               const state = genres.includes(g) ? 'in' : exclude.includes(g) ? 'out' : 'off';

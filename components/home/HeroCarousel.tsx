@@ -74,6 +74,8 @@ export function HeroCarousel({ items }: { items: Anime[] }) {
         <Backdrop key={anime.id} anime={anime} active={i === index} priority={i === 0} />
       ))}
 
+      <FloatingArt slides={slides} activeId={current.id} />
+
       <div className="gutter-x relative flex min-h-[84svh] flex-col justify-end pb-12 pt-24 sm:min-h-[78svh] sm:pb-16">
         <Copy key={current.id} anime={current} onTrailer={() => setTrailer(true)} />
 
@@ -128,6 +130,60 @@ function Backdrop({ anime, active, priority }: { anime: Anime; active: boolean; 
         }}
       />
       <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-ink-900 to-transparent" />
+    </div>
+  );
+}
+
+/**
+ * The rest of the featured lineup, drifting off to the side of whichever one
+ * is currently telling its story. Real cover art from the same catalogue
+ * request, not stock decoration — each one links straight to its title page,
+ * so the cutout gallery doubles as a shortcut into the rest of the lineup.
+ * Desktop-only: there isn't room to let this breathe on a phone without it
+ * fighting the copy for space.
+ */
+const SLOTS = [
+  { top: '8%', right: '4%', size: 116, tilt: -7, delay: '0s' },
+  { top: '38%', right: '15%', size: 92, tilt: 5, delay: '0.9s' },
+  { top: '58%', right: '1%', size: 132, tilt: 4, delay: '1.8s' },
+  { top: '4%', right: '24%', size: 78, tilt: -9, delay: '2.6s' },
+];
+
+function FloatingArt({ slides, activeId }: { slides: Anime[]; activeId: number }) {
+  const others = slides.filter((a) => a.id !== activeId).slice(0, SLOTS.length);
+  if (others.length === 0) return null;
+
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 hidden overflow-hidden lg:block"
+      aria-hidden
+    >
+      {others.map((anime, i) => {
+        const slot = SLOTS[i];
+        const src = anime.coverImage.extraLarge || anime.coverImage.large;
+        if (!src) return null;
+        return (
+          <Link
+            key={anime.id}
+            href={`/title/${anime.id}`}
+            className="pointer-events-auto absolute overflow-hidden rounded-art opacity-60 shadow-2xl
+                       ring-1 ring-white/10 transition-all duration-300 ease-physical
+                       cutout-float hover:z-10 hover:opacity-100 hover:[animation-play-state:paused]"
+            style={{
+              top: slot.top,
+              right: slot.right,
+              width: slot.size,
+              aspectRatio: '2 / 3',
+              ['--tilt' as string]: `${slot.tilt}deg`,
+              animationDelay: slot.delay,
+              transform: `rotate(${slot.tilt}deg)`,
+            }}
+            tabIndex={-1}
+          >
+            <Image src={src} alt="" fill sizes="140px" className="object-cover" />
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -35,8 +35,8 @@ export function RankCard({ anime, rank }: { anime: Anime; rank: number }) {
 
       <span
         className="relative -ml-6 block aspect-[2/3] w-[126px] shrink-0 overflow-hidden
-                   rounded-art bg-ink-800 transition-transform duration-300 ease-physical
-                   group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5
+                   rounded-art bg-ink-800 ring-1 ring-white/[0.06] transition-transform duration-300 ease-physical
+                   group-hover:-translate-y-1.5 group-hover:scale-[1.015] group-focus-visible:-translate-y-1.5
                    sm:w-[142px]"
       >
         {src && (

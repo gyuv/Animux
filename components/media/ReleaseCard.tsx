@@ -41,9 +41,9 @@ export function ReleaseCard({ anime, episodeOut, priority }: Props) {
       className="group relative block outline-none"
     >
       <div
-        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800
+        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800 ring-1 ring-white/[0.06]
                    transition-transform duration-300 ease-physical
-                   group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5"
+                   group-hover:-translate-y-1.5 group-hover:scale-[1.015] group-focus-visible:-translate-y-1.5"
       >
         {src && (
           <Image
