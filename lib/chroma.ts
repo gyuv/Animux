@@ -8,7 +8,9 @@
  * viewer is looking at.
  */
 
-const FALLBACK: RGB = [182, 173, 200];
+// Cyber Violet — the brand's own accent, used as the neutral chroma until
+// an artwork colour resolves, instead of a characterless grey.
+const FALLBACK: RGB = [139, 92, 246];
 
 export type RGB = [number, number, number];
 
@@ -61,8 +63,8 @@ export function contrast(a: RGB, b: RGB): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-export function readableOn(rgb: RGB): '#0E0B16' | '#F2EDF7' {
-  return contrast(rgb, [14, 11, 22]) >= contrast(rgb, [242, 237, 247])
-    ? '#0E0B16'
-    : '#F2EDF7';
+export function readableOn(rgb: RGB): '#080810' | '#F5F4FF' {
+  return contrast(rgb, [8, 8, 16]) >= contrast(rgb, [245, 244, 255])
+    ? '#080810'
+    : '#F5F4FF';
 }

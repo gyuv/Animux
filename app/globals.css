@@ -39,9 +39,20 @@
   --focus-w: 4px;
 }
 
+/* Lets the conic-gradient border shine on cards and glass panels rotate
+   smoothly — without it the custom property can't be interpolated and the
+   ring would just snap between angles instead of sweeping. Unsupported
+   browsers (older Firefox) get a static ring: a graceful fallback, not a
+   broken one. */
+@property --shine-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
 @layer base {
   html {
-    background-color: #0E0B16;
+    background-color: #080810;
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
   }
@@ -57,13 +68,15 @@
   }
 
   /*
-   * Ambient wash. Three soft, slow-drifting fields of colour sitting behind
+   * Ambient wash. Four soft, slow-drifting fields of colour sitting behind
    * every page — fixed, so scrolling never reveals a seam, and cheap, since
-   * it is four gradients on a pseudo-element rather than anything painted
-   * per-section. The signal/gold pair carries the brand; the third field
-   * tracks whatever artwork is currently in view via --chroma, so the glow
-   * itself joins in on the "repaint to match what's on screen" behaviour
-   * the rest of the app already does.
+   * it is gradients on one pseudo-element rather than anything painted
+   * per-section. Three carry the fixed neon accents (crimson, cyan, gold);
+   * the fourth tracks whatever artwork is currently in view via --chroma,
+   * so the glow itself joins in on the "repaint to match what's on screen"
+   * behaviour the rest of the app already does. Disabled on mobile and for
+   * reduced-motion, where a moving full-viewport gradient is pure battery
+   * cost for a detail nobody asked to look at.
    */
   body::before {
     content: '';
@@ -76,10 +89,15 @@
     z-index: -1;
     pointer-events: none;
     background:
-      radial-gradient(880px 620px at 12% -8%, rgb(var(--chroma) / 0.16), transparent 60%),
-      radial-gradient(720px 560px at 108% 8%, rgb(255 77 109 / 0.10), transparent 58%),
-      radial-gradient(760px 640px at 50% 118%, rgb(245 197 66 / 0.06), transparent 60%);
+      radial-gradient(880px 620px at 12% -8%, rgb(var(--chroma) / 0.18), transparent 60%),
+      radial-gradient(720px 560px at 108% 8%, rgb(255 46 99 / 0.10), transparent 58%),
+      radial-gradient(680px 600px at -6% 62%, rgb(0 242 254 / 0.07), transparent 58%),
+      radial-gradient(760px 640px at 50% 118%, rgb(255 215 0 / 0.05), transparent 60%);
     animation: auroraDrift 26s ease-in-out infinite;
+  }
+
+  [data-device='mobile'] body::before {
+    animation: none;
   }
 
   /* One focus treatment for keyboard, remote and switch control.
@@ -98,16 +116,16 @@
      page is the single loudest element on screen otherwise. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2E2540 transparent;
+    scrollbar-color: #1E1E38 transparent;
   }
   *::-webkit-scrollbar { width: 10px; height: 10px; }
   *::-webkit-scrollbar-track { background: transparent; }
   *::-webkit-scrollbar-thumb {
-    background: #2E2540;
-    border: 3px solid #0E0B16;
+    background: #1E1E38;
+    border: 3px solid #080810;
     border-radius: 8px;
   }
-  *::-webkit-scrollbar-thumb:hover { background: #3D3154; }
+  *::-webkit-scrollbar-thumb:hover { background: #2A2A4A; }
 }
 
 @layer components {
@@ -170,7 +188,7 @@
   .key-chroma {
     @apply key font-bold;
     background: linear-gradient(155deg, rgb(var(--chroma)), rgb(var(--chroma) / 0.82));
-    color: #0E0B16;
+    color: #080810;
     box-shadow: 0 1px 0 0 rgb(255 255 255 / 0.25) inset, 0 6px 20px -8px rgb(var(--chroma) / 0.7);
   }
   .key-chroma:hover {
@@ -199,6 +217,43 @@
   .glass {
     @apply relative border border-white/[0.07] bg-ink-800/70 backdrop-blur-2xl;
     box-shadow: 0 24px 70px -20px rgb(0 0 0 / 0.7), 0 1px 0 0 rgb(255 255 255 / 0.06) inset;
+  }
+
+  /*
+   * The aura-border shine: a thin conic-gradient ring, masked down to just
+   * the border itself, that only exists (and only spins) while the element
+   * is hovered or focused. Idle cost is zero — no gradient is even painted
+   * until `:hover`/`:focus-visible` flips its opacity on — so a whole grid
+   * of these costs nothing until a pointer actually lands on one of them.
+   */
+  .shine-conic {
+    @apply relative;
+  }
+  .shine-conic::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: 1;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: conic-gradient(
+      from var(--shine-angle, 0deg),
+      transparent 0%,
+      rgb(var(--chroma)) 10%,
+      rgb(0 242 254 / 0.9) 20%,
+      transparent 32%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s var(--ease-physical);
+  }
+  .shine-conic:hover::before,
+  .shine-conic:focus-visible::before {
+    opacity: 1;
+    animation: conicShine 1.8s linear infinite;
   }
 
   .chip {
@@ -259,7 +314,7 @@
      is a drop-shadow (follows the art's silhouette) rather than a box-shadow
      (which would draw a rectangle behind a rectangle and give the game away). */
   .cutout-float {
-    animation: cutoutFloat 7s var(--ease-physical) infinite;
+    animation: floatSlow 7s var(--ease-physical) infinite;
     filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.55));
   }
 
@@ -278,9 +333,18 @@
   50% { transform: translate3d(-1.5%, 1.5%, 0) scale(1.05); opacity: 0.85; }
 }
 
-@keyframes cutoutFloat {
-  0%, 100% { transform: translateY(0) rotate(var(--tilt, -3deg)); }
-  50% { transform: translateY(-16px) rotate(var(--tilt, -3deg)); }
+/*
+ * Duplicated from tailwind.config.js's `keyframes` block, same as `sheen`
+ * above: Tailwind only emits a keyframes block for animations reached
+ * through a literal `animate-*` class in scanned content, and these three
+ * are also driven directly via `animation:` in this file (and inline, for
+ * the preloader) rather than through their utility classes everywhere they
+ * appear — so a copy here guarantees they exist regardless of which form
+ * of the animation is used first.
+ */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50% { transform: translateY(-10px) rotate(calc(var(--tilt, 0deg) + 1deg)); }
 }
 
 @keyframes glowPulse {
@@ -288,9 +352,27 @@
   50% { opacity: 1; transform: scale(1.08); }
 }
 
-@keyframes splashBar {
+@keyframes conicShine {
+  to { --shine-angle: 360deg; }
+}
+
+@keyframes chargeBar {
   from { transform: scaleX(0); }
   to   { transform: scaleX(1); }
+}
+
+@keyframes ripple {
+  from { transform: scale(0.3); opacity: 0.9; }
+  to   { transform: scale(2.6); opacity: 0; }
+}
+
+/* The route-change slash: a skewed gradient bar sweeping edge to edge, used
+   once per navigation by PageTransition. transform-only (translateX plus a
+   fixed skew baked into the same property), so it is compositor-only and
+   costs nothing the rest of the page's paint doesn't already pay for. */
+@keyframes slashSweep {
+  from { transform: translateX(-30%) skewX(-18deg); }
+  to   { transform: translateX(230%) skewX(-18deg); }
 }
 
 /* Subtitle sizing is a preference, so it is driven by a variable the player

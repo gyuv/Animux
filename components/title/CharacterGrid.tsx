@@ -60,7 +60,7 @@ function CharacterCard({ edge }: { edge: CharacterEdge }) {
       onBlur={() => setFlipped(false)}
     >
       <div
-        className="relative aspect-[3/4] w-full overflow-hidden rounded-art bg-ink-800
+        className="shine-conic relative aspect-[3/4] w-full overflow-hidden rounded-art bg-ink-800
                    ring-1 ring-inset ring-white/[0.06] transition-transform duration-300
                    ease-physical group-hover:-translate-y-1"
       >

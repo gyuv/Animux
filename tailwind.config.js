@@ -8,24 +8,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        /*
+         * The neon-void scale. 900/800/700 are the three named tones of the
+         * identity itself (Deep Void, Onyx Dark, Obsidian); 950/600/500 are
+         * interpolated so every existing ink-* class in the app — nothing
+         * here was renamed — repaints into the new identity for free.
+         */
         ink: {
-          950: '#08060D',
-          900: '#0E0B16',
-          800: '#16121F',
-          700: '#211A2E',
-          600: '#2E2540',
-          500: '#3D3154',
+          950: '#050508',
+          900: '#080810',
+          800: '#0F0F1A',
+          700: '#141426',
+          600: '#1E1E38',
+          500: '#2A2A4A',
         },
-        haze: '#B6ADC8',
-        paper: '#F2EDF7',
-        signal: '#FF4D6D',
-        gold: '#F5C542',
+        haze: '#9C94BE',
+        paper: '#F5F4FF',
+        signal: '#FF2E63',
+        gold: '#FFD700',
+        violet: '#8B5CF6',
+        cyan: '#00F2FE',
         // Resolved at runtime from the artwork of whatever is on screen.
         chroma: 'rgb(var(--chroma) / <alpha-value>)',
       },
       fontFamily: {
         display: ['var(--font-display)', 'system-ui', 'sans-serif'],
         sans: ['var(--font-ui)', 'system-ui', 'sans-serif'],
+        // Orbitron has no CJK glyphs, so native-language titles (進撃の巨人)
+        // get their own face rather than silently falling back mid-string.
+        native: ['var(--font-native)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         // Scales with --density so TV gets 10-foot type from the same classes.
@@ -78,6 +89,31 @@ module.exports = {
           '0%, 100%': { transform: 'translate3d(0,0,0) scale(1)' },
           '50%': { transform: 'translate3d(2%, -2%, 0) scale(1.06)' },
         },
+        // Neon-identity motion primitives — transform/opacity only, so every
+        // one of these is compositor-only and cheap on low-end mobile GPUs.
+        glowPulse: {
+          '0%, 100%': { opacity: '0.55', transform: 'scale(1)' },
+          '50%': { opacity: '1', transform: 'scale(1.08)' },
+        },
+        floatSlow: {
+          '0%, 100%': { transform: 'translateY(0) rotate(var(--tilt, 0deg))' },
+          '50%': { transform: 'translateY(-10px) rotate(calc(var(--tilt, 0deg) + 1deg))' },
+        },
+        shimmerSweep: {
+          from: { transform: 'translateX(-120%) rotate(8deg)' },
+          to: { transform: 'translateX(220%) rotate(8deg)' },
+        },
+        conicShine: {
+          to: { '--shine-angle': '360deg' },
+        },
+        chargeBar: {
+          from: { transform: 'scaleX(0)' },
+          to: { transform: 'scaleX(1)' },
+        },
+        ripple: {
+          from: { transform: 'scale(0.3)', opacity: '0.9' },
+          to: { transform: 'scale(2.6)', opacity: '0' },
+        },
       },
       animation: {
         'pulse-signal': 'pulseSignal 2.4s ease-in-out infinite',
@@ -86,6 +122,12 @@ module.exports = {
         fade: 'fade 0.4s ease both',
         'scale-in': 'scaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) both',
         drift: 'drift 24s ease-in-out infinite',
+        'glow-pulse': 'glowPulse 2.6s ease-in-out infinite',
+        'float-slow': 'floatSlow 7s cubic-bezier(0.22, 1, 0.36, 1) infinite',
+        'shimmer-sweep': 'shimmerSweep 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite',
+        'conic-shine': 'conicShine 2.2s linear infinite',
+        'charge-bar': 'chargeBar 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards',
+        ripple: 'ripple 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards',
       },
     },
   },

@@ -5,7 +5,7 @@ import Hls from 'hls.js';
 import {
   Play, Pause, Volume2, Volume1, VolumeX, Maximize, Minimize,
   SkipForward, SkipBack, Settings, ArrowLeft, Loader2, Subtitles,
-  PictureInPicture2, Keyboard, RotateCcw, RotateCw,
+  PictureInPicture2, Keyboard, RotateCcw, RotateCw, ListVideo,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useLibrary } from '@/store/useLibrary';
@@ -17,6 +17,7 @@ import { ShortcutSheet } from './ShortcutSheet';
 import { SetupScreen } from './SetupScreen';
 import { PlaybackFailure } from './PlaybackFailure';
 import { EmbedStage } from './EmbedStage';
+import { EpisodeDrawer } from './EpisodeDrawer';
 
 interface Props {
   animeId: string;
@@ -65,6 +66,7 @@ export function Player({
   const [chrome, setChrome] = useState(true);
   const [menu, setMenu] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
+  const [episodeDrawer, setEpisodeDrawer] = useState(false);
   const [flash, setFlash] = useState<{ side: 'back' | 'forward'; at: number } | null>(null);
 
   const [levels, setLevels] = useState<QualityLevel[]>([]);
@@ -449,6 +451,25 @@ export function Player({
         ))}
       </video>
 
+      {/*
+        * Ambilight — a soft bloom of the anime's own accent colour bleeding
+        * in from the four corners, standing in for a live edge-colour sample
+        * of the frame (which would mean drawing every video frame to a
+        * canvas, a per-frame cost this player has no reason to pay for a
+        * background detail). `--chroma` already carries that colour, set by
+        * WatchScreen the moment this title's page loads, so the glow is
+        * free: two gradients and an opacity, not a sampling loop.
+        */}
+      <div
+        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.16] mix-blend-screen animate-glow-pulse [animation-duration:6s]"
+        style={{
+          background:
+            'radial-gradient(60% 40% at 0% 0%, rgb(var(--chroma)), transparent 70%),' +
+            'radial-gradient(60% 40% at 100% 100%, rgb(var(--chroma)), transparent 70%)',
+        }}
+        aria-hidden
+      />
+
       {buffering && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <Loader2 size={40} className="animate-spin text-paper/80" aria-hidden />
@@ -512,12 +533,24 @@ export function Player({
             </p>
           </div>
 
+          {totalEpisodes !== 1 && (
+            <button
+              type="button"
+              onClick={() => setEpisodeDrawer(true)}
+              aria-label="Episode list"
+              className="ml-auto shrink-0 rounded-full bg-black/40 p-2.5 text-haze
+                         backdrop-blur transition-colors hover:text-paper"
+            >
+              <ListVideo size={18} aria-hidden />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShortcuts(true)}
             aria-label="Keyboard shortcuts"
-            className="ml-auto hidden shrink-0 rounded-full bg-black/40 p-2.5 text-haze
-                       backdrop-blur transition-colors hover:text-paper [@media(pointer:fine)]:block"
+            className={`${totalEpisodes !== 1 ? '' : 'ml-auto'} hidden shrink-0 rounded-full bg-black/40 p-2.5 text-haze
+                       backdrop-blur transition-colors hover:text-paper [@media(pointer:fine)]:block`}
           >
             <Keyboard size={18} aria-hidden />
           </button>
@@ -640,6 +673,15 @@ export function Player({
       )}
 
       <ShortcutSheet open={shortcuts} onClose={() => setShortcuts(false)} seekStep={SEEK_STEP} />
+
+      <EpisodeDrawer
+        open={episodeDrawer}
+        onClose={() => setEpisodeDrawer(false)}
+        animeId={animeId}
+        cover={cover}
+        currentEpisode={episode}
+        totalEpisodes={totalEpisodes}
+      />
     </div>
   );
 }

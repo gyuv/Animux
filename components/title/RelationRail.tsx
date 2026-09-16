@@ -68,8 +68,9 @@ export function RelationRail({ edges }: { edges: RelationEdge[] }) {
             {anime ? (
               <Link
                 href={`/title/${edge.node.id}`}
-                className={`${shell} transition-all duration-200 ease-physical
-                            hover:-translate-y-0.5 hover:border-chroma/60 hover:bg-ink-700/60`}
+                className={`${shell} shine-conic transition-all duration-200 ease-physical
+                            hover:-translate-y-0.5 hover:border-chroma/60 hover:bg-ink-700/60
+                            hover:shadow-[0_14px_32px_-16px_rgb(var(--chroma)/0.5)]`}
               >
                 {inner}
               </Link>

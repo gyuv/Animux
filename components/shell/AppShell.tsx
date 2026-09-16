@@ -8,6 +8,7 @@ import { useDevice } from '@/hooks/useDevice';
 import { useSpatialNav } from '@/hooks/useSpatialNav';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { SplashScreen } from '@/components/shell/SplashScreen';
+import { PageTransition } from '@/components/shell/PageTransition';
 
 /**
  * The navigation is the part of this app that has to survive being wrapped in
@@ -96,7 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             : ''
         }
       >
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
 
       <CommandPalette open={palette} onClose={closePalette} />
@@ -113,6 +114,7 @@ function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
       aria-label="Main"
       className="fixed inset-y-0 left-0 z-40 flex w-rail flex-col items-center
                  gap-1 border-r border-ink-700/60 bg-ink-900/80 py-5 backdrop-blur-xl"
+      style={{ borderImage: 'linear-gradient(180deg, rgb(139 92 246 / 0.25), transparent 40%, transparent 60%, rgb(0 242 254 / 0.2)) 1' }}
     >
       <Link href="/" className="mb-5 rounded-key px-2 py-1" aria-label="Animux home">
         <Mark />
@@ -161,13 +163,14 @@ function TopBar({ onSearch, tv }: { onSearch: () => void; tv: boolean }) {
         type="button"
         onClick={onSearch}
         className={`flex items-center gap-2.5 rounded-key border border-ink-600/80 bg-ink-800/60
-                    px-3.5 py-2 text-meta text-haze backdrop-blur-md transition-colors
-                    hover:border-ink-500 hover:text-paper ${tv ? 'w-72' : 'w-64'}`}
+                    px-3.5 py-2 text-meta text-haze backdrop-blur-md transition-all duration-200
+                    hover:border-violet/60 hover:text-paper hover:shadow-[0_0_0_1px_rgb(139_92_246/0.3),0_8px_24px_-8px_rgb(139_92_246/0.45)]
+                    ${tv ? 'w-72' : 'w-64'}`}
       >
         <Search size={16} aria-hidden />
         <span className="flex-1 text-left">Search anime</span>
         {!tv && (
-          <kbd className="rounded border border-ink-600 bg-ink-900/70 px-1.5 py-0.5 font-sans text-[10px]">
+          <kbd className="rounded border border-ink-600 bg-ink-900/70 px-1.5 py-0.5 font-sans text-[10px] text-cyan/80">
             ⌘K
           </kbd>
         )}

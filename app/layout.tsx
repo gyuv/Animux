@@ -1,22 +1,30 @@
 import type { Metadata, Viewport } from 'next';
-import { Zen_Kaku_Gothic_New, Inter } from 'next/font/google';
+import { Orbitron, Plus_Jakarta_Sans, Zen_Kaku_Gothic_New } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/shell/AppShell';
 
 /**
- * Zen Kaku Gothic New carries the display type. It is a Japanese gothic, which
- * matters practically as well as tonally: the interface shows native titles
- * (進撃の巨人) beside romaji, and a Latin-only display face would fall back to
- * something mismatched the moment it hit kana.
+ * Orbitron carries the display type — the geometric, high-voltage face the
+ * neon identity is built around. It has no CJK glyphs, so native titles
+ * (進撃の巨人) are set in Zen Kaku Gothic New instead via `font-native`
+ * rather than being left to fall back to whatever generic sans the OS picks
+ * mid-string.
  */
-const display = Zen_Kaku_Gothic_New({
-  weight: ['700', '900'],
+const display = Orbitron({
+  weight: ['700', '800', '900'],
   subsets: ['latin'],
   variable: '--font-display',
   display: 'swap',
 });
 
-const ui = Inter({
+const native = Zen_Kaku_Gothic_New({
+  weight: ['700', '900'],
+  subsets: ['latin'],
+  variable: '--font-native',
+  display: 'swap',
+});
+
+const ui = Plus_Jakarta_Sans({
   subsets: ['latin'],
   variable: '--font-ui',
   display: 'swap',
@@ -46,7 +54,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0E0B16',
+  themeColor: '#080810',
   width: 'device-width',
   initialScale: 1,
   // Locked so a double-tap on the player doesn't zoom the page instead of seeking.
@@ -56,7 +64,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-device="desktop" className={`${display.variable} ${ui.variable}`}>
+    <html lang="en" data-device="desktop" className={`${display.variable} ${native.variable} ${ui.variable}`}>
       <body>
         <AppShell>{children}</AppShell>
       </body>

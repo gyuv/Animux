@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from 'framer-motion';
 import { Play, Plus, Check, Info, Film, Star } from 'lucide-react';
 import type { Anime } from '@/services/anilist';
 import { displayTitle, mainStudio } from '@/services/anilist';
@@ -11,6 +12,8 @@ import { stripHtml, airingIn, season, formatLabel, compact } from '@/lib/format'
 import { useLibrary } from '@/store/useLibrary';
 import { useChroma } from '@/hooks/useChroma';
 import { TrailerModal, trailerUrl } from '@/components/media/TrailerModal';
+import { AuraParticles } from '@/components/home/AuraParticles';
+import { Magnetic } from '@/components/ui/Magnetic';
 
 /**
  * The front door. Five titles, one at a time, advancing on a nine-second timer
@@ -35,6 +38,36 @@ export function HeroCarousel({ items }: { items: Anime[] }) {
 
   const current = slides[index];
   useChroma(current?.coverImage.color);
+
+  // Pointer position, normalised to -0.5..0.5 around the section's centre —
+  // the raw input the floating cutouts turn into a 3D tilt. Writes are
+  // gated to one per animation frame (a manual rAF-throttle rather than a
+  // trailing debounce) so a flurry of mousemove events costs one DOM read
+  // and one motion-value write per frame, never more, while still tracking
+  // the pointer with no perceptible lag.
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const pendingFrame = useRef<number | null>(null);
+
+  const onPointerMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    if (pendingFrame.current !== null) return;
+    const { clientX, clientY, currentTarget } = e;
+    pendingFrame.current = requestAnimationFrame(() => {
+      pendingFrame.current = null;
+      const rect = currentTarget.getBoundingClientRect();
+      mouseX.set((clientX - rect.left) / rect.width - 0.5);
+      mouseY.set((clientY - rect.top) / rect.height - 0.5);
+    });
+  }, [mouseX, mouseY]);
+
+  const onPointerLeave = useCallback(() => {
+    mouseX.set(0);
+    mouseY.set(0);
+  }, [mouseX, mouseY]);
+
+  useEffect(() => () => {
+    if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
+  }, []);
 
   const advance = useCallback(
     (step: number) => {
@@ -65,7 +98,8 @@ export function HeroCarousel({ items }: { items: Anime[] }) {
       aria-label="Featured"
       aria-roledescription="carousel"
       onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseLeave={() => { setPaused(false); onPointerLeave(); }}
+      onMouseMove={onPointerMove}
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
       className="relative isolate min-h-[84svh] w-full overflow-hidden sm:min-h-[78svh]"
@@ -74,7 +108,9 @@ export function HeroCarousel({ items }: { items: Anime[] }) {
         <Backdrop key={anime.id} anime={anime} active={i === index} priority={i === 0} />
       ))}
 
-      <FloatingArt slides={slides} activeId={current.id} />
+      <AuraParticles />
+
+      <FloatingArt slides={slides} activeId={current.id} mouseX={mouseX} mouseY={mouseY} />
 
       <div className="gutter-x relative flex min-h-[84svh] flex-col justify-end pb-12 pt-24 sm:min-h-[78svh] sm:pb-16">
         <Copy key={current.id} anime={current} onTrailer={() => setTrailer(true)} />
@@ -143,48 +179,85 @@ function Backdrop({ anime, active, priority }: { anime: Anime; active: boolean; 
  * fighting the copy for space.
  */
 const SLOTS = [
-  { top: '8%', right: '4%', size: 116, tilt: -7, delay: '0s' },
-  { top: '38%', right: '15%', size: 92, tilt: 5, delay: '0.9s' },
-  { top: '58%', right: '1%', size: 132, tilt: 4, delay: '1.8s' },
-  { top: '4%', right: '24%', size: 78, tilt: -9, delay: '2.6s' },
+  { top: '8%', right: '4%', size: 116, tilt: -7, delay: '0s', depth: 1 },
+  { top: '38%', right: '15%', size: 92, tilt: 5, delay: '0.9s', depth: 0.6 },
+  { top: '58%', right: '1%', size: 132, tilt: 4, delay: '1.8s', depth: 1.3 },
+  { top: '4%', right: '24%', size: 78, tilt: -9, delay: '2.6s', depth: 0.4 },
 ];
 
-function FloatingArt({ slides, activeId }: { slides: Anime[]; activeId: number }) {
+function FloatingArt({
+  slides,
+  activeId,
+  mouseX,
+  mouseY,
+}: {
+  slides: Anime[];
+  activeId: number;
+  mouseX: MotionValue<number>;
+  mouseY: MotionValue<number>;
+}) {
   const others = slides.filter((a) => a.id !== activeId).slice(0, SLOTS.length);
   if (others.length === 0) return null;
 
   return (
     <div
       className="pointer-events-none absolute inset-0 hidden overflow-hidden lg:block"
+      style={{ perspective: 700 }}
       aria-hidden
     >
-      {others.map((anime, i) => {
-        const slot = SLOTS[i];
-        const src = anime.coverImage.extraLarge || anime.coverImage.large;
-        if (!src) return null;
-        return (
-          <Link
-            key={anime.id}
-            href={`/title/${anime.id}`}
-            className="pointer-events-auto absolute overflow-hidden rounded-art opacity-60 shadow-2xl
-                       ring-1 ring-white/10 transition-all duration-300 ease-physical
-                       cutout-float hover:z-10 hover:opacity-100 hover:[animation-play-state:paused]"
-            style={{
-              top: slot.top,
-              right: slot.right,
-              width: slot.size,
-              aspectRatio: '2 / 3',
-              ['--tilt' as string]: `${slot.tilt}deg`,
-              animationDelay: slot.delay,
-              transform: `rotate(${slot.tilt}deg)`,
-            }}
-            tabIndex={-1}
-          >
-            <Image src={src} alt="" fill sizes="140px" className="object-cover" />
-          </Link>
-        );
-      })}
+      {others.map((anime, i) => (
+        <FloatingPoster key={anime.id} anime={anime} slot={SLOTS[i]} mouseX={mouseX} mouseY={mouseY} />
+      ))}
     </div>
+  );
+}
+
+/**
+ * One cutout, two independent transforms layered rather than merged: the
+ * outer element carries Framer Motion's mouse-driven tilt (rotateX/rotateY
+ * plus a depth-scaled parallax offset — nearer cards in the cluster swing
+ * further than distant ones), the inner element carries the CSS idle bob.
+ * Both animate `transform`, so keeping them on separate elements is what
+ * stops one from clobbering the other every frame.
+ */
+function FloatingPoster({
+  anime,
+  slot,
+  mouseX,
+  mouseY,
+}: {
+  anime: Anime;
+  slot: (typeof SLOTS)[number];
+  mouseX: MotionValue<number>;
+  mouseY: MotionValue<number>;
+}) {
+  const src = anime.coverImage.extraLarge || anime.coverImage.large;
+
+  const springX = useSpring(mouseX, { stiffness: 120, damping: 18, mass: 0.4 });
+  const springY = useSpring(mouseY, { stiffness: 120, damping: 18, mass: 0.4 });
+  const rotateY = useTransform(springX, [-0.5, 0.5], [-10 * slot.depth, 10 * slot.depth]);
+  const rotateX = useTransform(springY, [-0.5, 0.5], [8 * slot.depth, -8 * slot.depth]);
+  const x = useTransform(springX, [-0.5, 0.5], [-16 * slot.depth, 16 * slot.depth]);
+  const y = useTransform(springY, [-0.5, 0.5], [-12 * slot.depth, 12 * slot.depth]);
+
+  if (!src) return null;
+
+  return (
+    <motion.div
+      className="pointer-events-auto absolute hover:z-10"
+      style={{ top: slot.top, right: slot.right, width: slot.size, aspectRatio: '2 / 3', rotateX, rotateY, x, y }}
+    >
+      <Link
+        href={`/title/${anime.id}`}
+        className="shine-conic block h-full w-full overflow-hidden rounded-art opacity-65 shadow-2xl
+                   ring-1 ring-white/10 transition-opacity duration-300 ease-physical
+                   cutout-float hover:opacity-100 hover:[animation-play-state:paused]"
+        style={{ ['--tilt' as string]: `${slot.tilt}deg`, animationDelay: slot.delay }}
+        tabIndex={-1}
+      >
+        <Image src={src} alt="" fill sizes="140px" className="object-cover" />
+      </Link>
+    </motion.div>
   );
 }
 
@@ -220,7 +293,7 @@ function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
       </h1>
 
       {anime.title.native && (
-        <p className="mt-2 font-display text-lead font-bold text-haze/75">{anime.title.native}</p>
+        <p className="mt-2 font-native text-lead font-bold text-haze/75">{anime.title.native}</p>
       )}
 
       <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-meta text-haze">
@@ -241,10 +314,18 @@ function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
       )}
 
       <div className="mt-7 flex flex-wrap items-center gap-3">
-        <Link href={`/watch/${anime.id}?ep=1`} className="key-chroma">
-          <Play size={17} className="fill-current" aria-hidden />
-          Play episode 1
-        </Link>
+        <Magnetic strength={0.25}>
+          <span className="relative inline-flex">
+            <span
+              className="glow-pulse pointer-events-none absolute inset-0 -z-10 rounded-key bg-chroma/50 blur-xl"
+              aria-hidden
+            />
+            <Link href={`/watch/${anime.id}?ep=1`} className="key-chroma">
+              <Play size={17} className="fill-current" aria-hidden />
+              Play episode 1
+            </Link>
+          </span>
+        </Magnetic>
         <Link href={`/title/${anime.id}`} className="key-ghost">
           <Info size={16} aria-hidden />
           Details
@@ -255,15 +336,17 @@ function Copy({ anime, onTrailer }: { anime: Anime; onTrailer: () => void }) {
             Trailer
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => toggleSaved(String(anime.id))}
-          aria-pressed={saved}
-          aria-label={saved ? 'Remove from library' : 'Save to library'}
-          className="key-ghost px-3.5"
-        >
-          {saved ? <Check size={17} aria-hidden /> : <Plus size={17} aria-hidden />}
-        </button>
+        <Magnetic strength={0.4}>
+          <button
+            type="button"
+            onClick={() => toggleSaved(String(anime.id))}
+            aria-pressed={saved}
+            aria-label={saved ? 'Remove from library' : 'Save to library'}
+            className="key-ghost px-3.5"
+          >
+            {saved ? <Check size={17} aria-hidden /> : <Plus size={17} aria-hidden />}
+          </button>
+        </Magnetic>
       </div>
     </div>
   );
