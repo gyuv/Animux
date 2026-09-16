@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { Anime } from '@/services/anilist';
 import { displayTitle } from '@/services/anilist';
 import { toChromaVar } from '@/lib/chroma';
+import { useCardPreview } from '@/components/media/CardPreview';
 
 /**
  * At rest the card is only artwork and two lines of type — no badges, no
@@ -28,16 +29,21 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
   const src = anime.coverImage.extraLarge || anime.coverImage.large;
   const airing = anime.status === 'RELEASING';
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : null;
+  const preview = useCardPreview<HTMLAnchorElement>(anime);
 
   return (
+    <>
     <Link
+      ref={preview.ref}
+      onMouseEnter={preview.onMouseEnter}
+      onMouseLeave={preview.onMouseLeave}
       href={`/title/${anime.id}`}
       style={{ ['--chroma' as string]: chroma }}
       className="group relative block w-[144px] shrink-0 outline-none
                  sm:w-[164px] [--card-w:144px] sm:[--card-w:164px]"
     >
       <div
-        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800
+        className="shine-conic relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800 ring-1 ring-white/[0.06]
                    transition-transform duration-300 ease-physical
                    group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5"
       >
@@ -49,7 +55,8 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
             sizes={sizes ?? '(max-width: 640px) 45vw, 180px'}
             priority={priority}
             onLoad={() => setLoaded(true)}
-            className={`object-cover transition-opacity duration-500
+            className={`object-cover transition-[opacity,transform] duration-300
+                        group-hover:scale-105 group-hover:will-change-transform
                         ${loaded ? 'opacity-100' : 'opacity-0'}`}
           />
         )}
@@ -91,6 +98,8 @@ export function PosterCard({ anime, progress, priority, sizes }: Props) {
         </p>
       </div>
     </Link>
+    {preview.panel}
+    </>
   );
 }
 

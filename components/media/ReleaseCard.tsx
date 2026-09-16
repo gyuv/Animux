@@ -7,6 +7,7 @@ import { Star, Play } from 'lucide-react';
 import type { Anime } from '@/services/anilist';
 import { displayTitle } from '@/services/anilist';
 import { toChromaVar } from '@/lib/chroma';
+import { useCardPreview } from '@/components/media/CardPreview';
 
 /**
  * The grid card, for the shelf where the episode number is the news.
@@ -33,15 +34,20 @@ export function ReleaseCard({ anime, episodeOut, priority }: Props) {
   const chroma = toChromaVar(anime.coverImage.color);
   const src = anime.coverImage.extraLarge || anime.coverImage.large;
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : null;
+  const preview = useCardPreview<HTMLAnchorElement>(anime);
 
   return (
+    <>
     <Link
+      ref={preview.ref}
+      onMouseEnter={preview.onMouseEnter}
+      onMouseLeave={preview.onMouseLeave}
       href={`/title/${anime.id}`}
       style={{ ['--chroma' as string]: chroma }}
       className="group relative block outline-none"
     >
       <div
-        className="relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800
+        className="shine-conic relative aspect-[2/3] overflow-hidden rounded-art bg-ink-800 ring-1 ring-white/[0.06]
                    transition-transform duration-300 ease-physical
                    group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5"
       >
@@ -53,7 +59,7 @@ export function ReleaseCard({ anime, episodeOut, priority }: Props) {
             sizes="(max-width: 640px) 33vw, (max-width: 1024px) 22vw, 180px"
             priority={priority}
             onLoad={() => setLoaded(true)}
-            className={`object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+            className={`object-cover transition-[opacity,transform] duration-300 group-hover:scale-105 group-hover:will-change-transform ${loaded ? 'opacity-100' : 'opacity-0'}`}
           />
         )}
         {!loaded && <div className="skeleton absolute inset-0" aria-hidden />}
@@ -114,5 +120,7 @@ export function ReleaseCard({ anime, episodeOut, priority }: Props) {
         {anime.duration ? <span>{anime.duration}m</span> : null}
       </p>
     </Link>
+    {preview.panel}
+    </>
   );
 }

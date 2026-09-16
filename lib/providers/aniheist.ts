@@ -39,9 +39,34 @@ function baseUrl(): string {
   return (process.env.ANIHEIST_API_URL || DEFAULT_BASE).replace(/\/+$/, '');
 }
 
+/*
+ * A minimal circuit breaker, in module scope.
+ *
+ * Without this, an AniHeist outage costs every single request the full
+ * `timeoutMs` wait before it can fall through to the next source — the
+ * "taking a slice of every request" a dead upstream imposes on a chain that
+ * otherwise resolves in a few hundred milliseconds. A serverless instance
+ * that just watched it time out does not need to watch it time out again
+ * thirty seconds later; it needs the next few requests to skip straight past
+ * it. This resets per cold start, which is the right lifetime for it — a
+ * new instance gives the upstream a fresh chance rather than inheriting a
+ * trip from one that may have recovered since.
+ */
+let openedAt = 0;
+const COOLDOWN_MS = 90_000;
+
+function markUnreachable() {
+  openedAt = Date.now();
+}
+
+function circuitOpen(): boolean {
+  return openedAt !== 0 && Date.now() - openedAt < COOLDOWN_MS;
+}
+
 /** On by default: unlike the scraper services, there is a public instance. */
 export function aniheistConfigured(): boolean {
-  return process.env.ANIHEIST_ENABLED !== '0';
+  if (process.env.ANIHEIST_ENABLED === '0') return false;
+  return !circuitOpen();
 }
 
 interface StreamResponse {
@@ -100,6 +125,12 @@ export async function aniheistSources(
       cache: 'no-store',
     });
   } catch (err) {
+    // A network failure or timeout means the instance itself is unreachable,
+    // not that this one episode is missing — worth remembering so the next
+    // request in this instance's lifetime skips the wait rather than
+    // repeating it. A non-2xx response further down is not this: that is the
+    // service answering, just refusing this particular request.
+    markUnreachable();
     const detail = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
     throw new ProviderError(
       `${label} did not answer.`,

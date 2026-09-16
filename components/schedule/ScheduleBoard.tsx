@@ -114,6 +114,7 @@ export function ScheduleBoard({ entries }: { entries: AiringEntry[] }) {
                     className={`group flex items-center gap-3 rounded-panel border border-ink-700
                                 bg-ink-800/60 p-2.5 transition-all duration-200 ease-physical
                                 hover:-translate-y-0.5 hover:border-chroma/60 hover:bg-ink-700/60
+                                hover:shadow-[0_14px_32px_-16px_rgb(var(--chroma)/0.5)]
                                 ${aired ? 'opacity-65' : ''}`}
                   >
                     <span className="relative h-[76px] w-[54px] shrink-0 overflow-hidden rounded bg-ink-700">

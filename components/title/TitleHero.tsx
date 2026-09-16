@@ -90,7 +90,7 @@ export function TitleHero({ anime }: { anime: AnimeDetail }) {
               {displayTitle(anime.title)}
             </h1>
             {anime.title.native && (
-              <p className="mt-2 font-display text-lead font-bold text-haze/75">{anime.title.native}</p>
+              <p className="mt-2 font-native text-lead font-bold text-haze/75">{anime.title.native}</p>
             )}
 
             {studio && <p className="mt-2 text-meta text-haze">{studio}</p>}

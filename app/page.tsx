@@ -248,12 +248,12 @@ function SeeAll({ href }: { href: string }) {
  * answer every one of them — this is just the door.
  */
 const GENRE_TILES: { genre: string; blurb: string; from: string; to: string }[] = [
-  { genre: 'Action', blurb: 'Fights, chases, stakes', from: '#FF4D6D', to: '#7A2740' },
+  { genre: 'Action', blurb: 'Fights, chases, stakes', from: '#FF2E63', to: '#7A2740' },
   { genre: 'Romance', blurb: 'Slow looks, long pauses', from: '#F58AB0', to: '#5E2A45' },
   { genre: 'Slice of Life', blurb: 'Small days, low stakes', from: '#7FD1AE', to: '#254A3E' },
   { genre: 'Psychological', blurb: 'Unreliable everything', from: '#9B8CFF', to: '#2E2857' },
   { genre: 'Sci-Fi', blurb: 'Futures, near and far', from: '#5BC8F5', to: '#1E3D52' },
-  { genre: 'Comedy', blurb: 'Timing above all', from: '#F5C542', to: '#54430F' },
+  { genre: 'Comedy', blurb: 'Timing above all', from: '#FFD700', to: '#54430F' },
   { genre: 'Mystery', blurb: 'Something is off', from: '#B58CF5', to: '#3A2757' },
   { genre: 'Sports', blurb: 'Practice, then payoff', from: '#63E6A0', to: '#1F4A33' },
 ];
@@ -271,7 +271,7 @@ function GenreGrid() {
           <Link
             key={genre}
             href={`/browse?genre=${encodeURIComponent(genre)}&sort=SCORE_DESC`}
-            className="group relative overflow-hidden rounded-panel border border-white/[0.06] p-4 pb-5
+            className="shine-conic group relative overflow-hidden rounded-panel border border-white/[0.06] p-4 pb-5
                        transition-transform duration-300 ease-physical hover:-translate-y-1"
           >
             <span

@@ -7,6 +7,8 @@ import { Home, Compass, CalendarDays, Bookmark, Settings2, Search } from 'lucide
 import { useDevice } from '@/hooks/useDevice';
 import { useSpatialNav } from '@/hooks/useSpatialNav';
 import { CommandPalette } from '@/components/search/CommandPalette';
+import { SplashScreen } from '@/components/shell/SplashScreen';
+import { PageTransition } from '@/components/shell/PageTransition';
 
 /**
  * The navigation is the part of this app that has to survive being wrapped in
@@ -63,7 +65,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // The player owns the whole screen; navigation would only be in the way.
   const immersive = pathname?.startsWith('/watch');
-  if (immersive) return <>{children}</>;
+  if (immersive) {
+    return (
+      <>
+        {children}
+        <SplashScreen />
+      </>
+    );
+  }
 
   const isMobile = device === 'mobile';
 
@@ -88,10 +97,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             : ''
         }
       >
-        {children}
+        <PageTransition>{children}</PageTransition>
       </main>
 
       <CommandPalette open={palette} onClose={closePalette} />
+      <SplashScreen />
     </div>
   );
 }
@@ -104,6 +114,7 @@ function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
       aria-label="Main"
       className="fixed inset-y-0 left-0 z-40 flex w-rail flex-col items-center
                  gap-1 border-r border-ink-700/60 bg-ink-900/80 py-5 backdrop-blur-xl"
+      style={{ borderImage: 'linear-gradient(180deg, rgb(139 92 246 / 0.25), transparent 40%, transparent 60%, rgb(0 242 254 / 0.2)) 1' }}
     >
       <Link href="/" className="mb-5 rounded-key px-2 py-1" aria-label="Animux home">
         <Mark />
@@ -117,12 +128,12 @@ function SideRail({ pathname, tv }: { pathname: string | null; tv: boolean }) {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={`group relative flex w-[84%] flex-col items-center gap-1.5 rounded-panel py-3
-                        transition-colors duration-200 ease-physical
-                        ${active ? 'bg-ink-700 text-paper' : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
+                        transition-all duration-200 ease-physical
+                        ${active ? 'bg-ink-700 text-paper shadow-[inset_0_1px_0_0_rgb(255_255_255_/_0.06)]' : 'text-haze hover:bg-ink-800 hover:text-paper'}`}
           >
             {active && (
               <span
-                className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-chroma"
+                className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-chroma shadow-[0_0_12px_2px_rgb(var(--chroma)/0.7)]"
                 aria-hidden
               />
             )}
@@ -152,13 +163,14 @@ function TopBar({ onSearch, tv }: { onSearch: () => void; tv: boolean }) {
         type="button"
         onClick={onSearch}
         className={`flex items-center gap-2.5 rounded-key border border-ink-600/80 bg-ink-800/60
-                    px-3.5 py-2 text-meta text-haze backdrop-blur-md transition-colors
-                    hover:border-ink-500 hover:text-paper ${tv ? 'w-72' : 'w-64'}`}
+                    px-3.5 py-2 text-meta text-haze backdrop-blur-md transition-all duration-200
+                    hover:border-violet/60 hover:text-paper hover:shadow-[0_0_0_1px_rgb(139_92_246/0.3),0_8px_24px_-8px_rgb(139_92_246/0.45)]
+                    ${tv ? 'w-72' : 'w-64'}`}
       >
         <Search size={16} aria-hidden />
         <span className="flex-1 text-left">Search anime</span>
         {!tv && (
-          <kbd className="rounded border border-ink-600 bg-ink-900/70 px-1.5 py-0.5 font-sans text-[10px]">
+          <kbd className="rounded border border-ink-600 bg-ink-900/70 px-1.5 py-0.5 font-sans text-[10px] text-cyan/80">
             ⌘K
           </kbd>
         )}
@@ -249,7 +261,13 @@ function useScrolled(threshold: number) {
  */
 function Mark() {
   return (
-    <span className="font-display text-[19px] font-black leading-none tracking-tight text-paper">
+    <span className="group/mark relative font-display text-[19px] font-black leading-none tracking-tight text-paper">
+      <span
+        className="absolute left-1/2 top-1/2 -z-10 h-8 w-8 -translate-x-1/2 -translate-y-1/2
+                   rounded-full bg-chroma/0 blur-lg transition-colors duration-300
+                   group-hover/mark:bg-chroma/40"
+        aria-hidden
+      />
       a<span className="text-chroma">x</span>
     </span>
   );

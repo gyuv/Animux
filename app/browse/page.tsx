@@ -86,7 +86,7 @@ export default async function BrowsePage({ searchParams }: { searchParams: Promi
           </p>
 
           <div
-            className="gutter-x grid gap-x-3 gap-y-7 py-5
+            className="gutter-x grid animate-fade gap-x-3 gap-y-7 py-5
                        [grid-template-columns:repeat(auto-fill,minmax(144px,1fr))]
                        sm:[grid-template-columns:repeat(auto-fill,minmax(164px,1fr))]"
           >

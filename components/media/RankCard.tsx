@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Anime } from '@/services/anilist';
 import { displayTitle } from '@/services/anilist';
 import { toChromaVar } from '@/lib/chroma';
+import { useCardPreview } from '@/components/media/CardPreview';
 
 /**
  * The top-ten rail. The rank is set enormous in outline behind the poster and
@@ -15,9 +16,14 @@ import { toChromaVar } from '@/lib/chroma';
 export function RankCard({ anime, rank }: { anime: Anime; rank: number }) {
   const chroma = toChromaVar(anime.coverImage.color);
   const src = anime.coverImage.extraLarge || anime.coverImage.large;
+  const preview = useCardPreview<HTMLAnchorElement>(anime);
 
   return (
+    <>
     <Link
+      ref={preview.ref}
+      onMouseEnter={preview.onMouseEnter}
+      onMouseLeave={preview.onMouseLeave}
       href={`/title/${anime.id}`}
       style={{ ['--chroma' as string]: chroma }}
       className="group relative flex shrink-0 items-end gap-1 pl-2 outline-none"
@@ -34,13 +40,19 @@ export function RankCard({ anime, rank }: { anime: Anime; rank: number }) {
       </span>
 
       <span
-        className="relative -ml-6 block aspect-[2/3] w-[126px] shrink-0 overflow-hidden
-                   rounded-art bg-ink-800 transition-transform duration-300 ease-physical
+        className="shine-conic relative -ml-6 block aspect-[2/3] w-[126px] shrink-0 overflow-hidden
+                   rounded-art bg-ink-800 ring-1 ring-white/[0.06] transition-transform duration-300 ease-physical
                    group-hover:-translate-y-1.5 group-focus-visible:-translate-y-1.5
                    sm:w-[142px]"
       >
         {src && (
-          <Image src={src} alt="" fill sizes="142px" className="object-cover" />
+          <Image
+            src={src}
+            alt=""
+            fill
+            sizes="142px"
+            className="object-cover transition-transform duration-300 group-hover:scale-105 group-hover:will-change-transform"
+          />
         )}
         <span
           className="pointer-events-none absolute inset-0 rounded-art opacity-0 ring-2 ring-inset
@@ -53,5 +65,7 @@ export function RankCard({ anime, rank }: { anime: Anime; rank: number }) {
         />
       </span>
     </Link>
+    {preview.panel}
+    </>
   );
 }

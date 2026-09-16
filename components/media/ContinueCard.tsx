@@ -27,7 +27,7 @@ export function ContinueCard({ entry, fill }: { entry: WatchProgress; fill?: boo
         href={`/watch/${entry.animeId}?ep=${entry.episode}&t=${Math.floor(entry.position)}`}
         className="block outline-none"
       >
-        <div className="relative aspect-video overflow-hidden rounded-art bg-ink-800
+        <div className="shine-conic relative aspect-video overflow-hidden rounded-art bg-ink-800 ring-1 ring-white/[0.06]
                         transition-transform duration-300 ease-physical
                         group-hover:-translate-y-1 group-focus-within:-translate-y-1">
           {entry.cover && (
@@ -36,8 +36,8 @@ export function ContinueCard({ entry, fill }: { entry: WatchProgress; fill?: boo
               alt=""
               fill
               sizes={fill ? '(max-width: 640px) 90vw, 300px' : '288px'}
-              className="object-cover opacity-85 transition-opacity duration-300
-                         group-hover:opacity-100"
+              className="object-cover opacity-85 transition-[opacity,transform] duration-300
+                         group-hover:scale-105 group-hover:opacity-100 group-hover:will-change-transform"
             />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-ink-900 via-ink-900/25 to-transparent" />
